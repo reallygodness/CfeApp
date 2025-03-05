@@ -2,6 +2,7 @@ package com.example.cfeprjct.Activities;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Patterns;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -97,6 +98,18 @@ public class ProfileActivity extends AppCompatActivity {
         String newLastName = lastNameEditText.getText().toString().trim();
         String newEmail = emailEditText.getText().toString().trim();
         String newPhoneNumber = phoneNumberEditText.getText().toString().trim();
+
+        // Валидация email
+        if (!Patterns.EMAIL_ADDRESS.matcher(newEmail).matches()) {
+            Toast.makeText(this, "Введите корректный email!", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Валидация номера телефона (ровно 11 цифр)
+        if (!phoneNumber.matches("^\\d{11}$")) {
+            Toast.makeText(this, "Номер телефона должен содержать 11 цифр!", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
         if (newFirstName.isEmpty() || newLastName.isEmpty() || newEmail.isEmpty() || newPhoneNumber.isEmpty()) {
             Toast.makeText(this, "Все поля должны быть заполнены!", Toast.LENGTH_SHORT).show();
