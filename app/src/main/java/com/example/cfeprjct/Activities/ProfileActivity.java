@@ -83,6 +83,7 @@ public class ProfileActivity extends AppCompatActivity {
             phoneNumberTextView.setVisibility(View.GONE);
             editProfileButton.setVisibility(View.GONE);
 
+
             firstNameEditText.setVisibility(View.VISIBLE);
             lastNameEditText.setVisibility(View.VISIBLE);
             emailEditText.setVisibility(View.VISIBLE);
