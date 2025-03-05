@@ -161,9 +161,16 @@ public class RegisterActivity extends AppCompatActivity {
 
         new Thread(() -> {
             User existingUser = db.userDAO().getUserByPhoneNumber(phoneNumber);
+            User existingUserEmail = db.userDAO().getUserByEmail(email);
             if (existingUser != null) {
                 runOnUiThread(() -> Toast.makeText(RegisterActivity.this, "Пользователь с таким номером уже зарегистрирован!", Toast.LENGTH_SHORT).show());
-            } else {
+            }
+
+            if (existingUserEmail != null) {
+                runOnUiThread(() -> Toast.makeText(RegisterActivity.this, "Пользователь с таким email уже зарегистрирован!", Toast.LENGTH_SHORT).show());
+            }
+
+            else {
                 User newUser = new User(firstName, lastName, email, phoneNumber, password);
                 db.userDAO().insertUser(newUser);
                 runOnUiThread(() -> {

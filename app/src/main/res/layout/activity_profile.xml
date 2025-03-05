@@ -78,6 +78,7 @@
         android:id="@+id/phoneNumberEditText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:maxLength="11"
         android:hint="Номер телефона"
         android:textSize="18sp"
         android:visibility="gone"
