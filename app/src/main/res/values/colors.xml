@@ -13,4 +13,7 @@
     <color name="red">#FF0000</color>
     <color name="green">#008000</color>
     <color name="brown">#88540B</color>
+    <color name="brown_hint">#9B6B43</color>
+    <color name="background_white">#F9F9F9</color>
+    <color name="gray_button">#F2EDE8</color>
 </resources>

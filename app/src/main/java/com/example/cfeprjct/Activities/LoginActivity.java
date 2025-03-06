@@ -3,8 +3,12 @@ package com.example.cfeprjct.Activities;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.text.method.HideReturnsTransformationMethod;
+import android.text.method.PasswordTransformationMethod;
 import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -22,6 +26,10 @@ public class LoginActivity extends AppCompatActivity {
     private EditText phoneEditText, passwordEditText;
     private AppDatabase db;
 
+    private ImageView togglePassword;
+    private boolean isPasswordVisible = false;
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,18 +42,34 @@ public class LoginActivity extends AppCompatActivity {
         // Добавляем маску для номера телефона
         phoneEditText.addTextChangedListener(new PhoneNumberTextWatcher(phoneEditText));
 
+        togglePassword = findViewById(R.id.togglePassword);
 
         // Переход к регистрации
         db = AppDatabase.getInstance(this);
 
 
-        TextView registerLink = findViewById(R.id.registerLink);
+        TextView registerLink = findViewById(R.id.btnreg);
         if (registerLink != null) {
             registerLink.setOnClickListener(view -> {
                 Intent intent = new Intent(LoginActivity.this, RegisterActivity.class);
                 startActivity(intent);
             });
         }
+
+        togglePassword.setOnClickListener(view -> {
+            if (isPasswordVisible) {
+                // Скрываем пароль
+                passwordEditText.setTransformationMethod(PasswordTransformationMethod.getInstance());
+                togglePassword.setImageResource(R.drawable.ic_eye_closed);
+            } else {
+                // Показываем пароль
+                passwordEditText.setTransformationMethod(HideReturnsTransformationMethod.getInstance());
+                togglePassword.setImageResource(R.drawable.ic_eye);
+            }
+            isPasswordVisible = !isPasswordVisible;
+            passwordEditText.setSelection(passwordEditText.getText().length()); // Ставим курсор в конец
+        });
+
 
     }
 

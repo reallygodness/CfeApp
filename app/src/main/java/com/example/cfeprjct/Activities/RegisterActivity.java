@@ -5,9 +5,12 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.text.method.HideReturnsTransformationMethod;
+import android.text.method.PasswordTransformationMethod;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
@@ -28,6 +31,9 @@ public class RegisterActivity extends AppCompatActivity {
 
     private AppDatabase db;
 
+    private ImageView togglePassword;
+    private boolean isPasswordVisible = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -46,6 +52,7 @@ public class RegisterActivity extends AppCompatActivity {
         emailEditText = findViewById(R.id.email);
         phoneEditText = findViewById(R.id.phoneNumber);
         passwordEditText = findViewById(R.id.password);
+        togglePassword = findViewById(R.id.togglePassword);
 
         link_to_login = findViewById(R.id.loginLink);
 
@@ -83,6 +90,20 @@ public class RegisterActivity extends AppCompatActivity {
                 return;
             }
             registerUser();
+        });
+
+        togglePassword.setOnClickListener(view -> {
+            if (isPasswordVisible) {
+                // Скрываем пароль
+                passwordEditText.setTransformationMethod(PasswordTransformationMethod.getInstance());
+                togglePassword.setImageResource(R.drawable.ic_eye_closed);
+            } else {
+                // Показываем пароль
+                passwordEditText.setTransformationMethod(HideReturnsTransformationMethod.getInstance());
+                togglePassword.setImageResource(R.drawable.ic_eye);
+            }
+            isPasswordVisible = !isPasswordVisible;
+            passwordEditText.setSelection(passwordEditText.getText().length()); // Ставим курсор в конец
         });
     }
 

@@ -31,33 +31,17 @@
         android:textColor="@color/black"
         android:layout_marginTop="12dp"/>
 
-    <RelativeLayout
+    <EditText
+        android:id="@+id/password"
         android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:layout_marginTop="12dp">
-
-        <EditText
-            android:id="@+id/password"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:hint="Пароль"
-            android:background="@drawable/edit_text_bg"
-            android:padding="16dp"
-            android:textColorHint="#9B6B43"
-            android:textSize="16sp"
-            android:textColor="@color/black"
-            android:inputType="textPassword"/>
-
-        <ImageView
-            android:id="@+id/togglePassword"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_alignParentEnd="true"
-            android:layout_centerVertical="true"
-            android:layout_marginEnd="16dp"
-            android:src="@drawable/ic_eye_closed"
-            android:contentDescription="Toggle password visibility"/>
-    </RelativeLayout>
+        android:hint="Пароль"
+        android:background="@drawable/edit_text_bg"
+        android:padding="16dp"
+        android:textColorHint="#9B6B43"
+        android:textSize="16sp"
+        android:textColor="@color/black"
+        android:layout_marginTop="12dp"/>
 
 
 
@@ -78,7 +62,7 @@
         app:backgroundTint="@null" />
 
     <Button
-        android:id="@+id/btnreg"
+        android:id="@+id/btnregister"
         android:layout_marginTop="24dp"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

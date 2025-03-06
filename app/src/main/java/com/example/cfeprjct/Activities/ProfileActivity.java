@@ -146,7 +146,7 @@ public class ProfileActivity extends AppCompatActivity {
 
     public void logout(View view) {
         AuthUtils.setLoggedIn(this, false, null);
-        Intent intent = new Intent(this, LoginActivity.class);
+        Intent intent = new Intent(this, WelcomeActivity.class);
         startActivity(intent);
         finish();
     }
