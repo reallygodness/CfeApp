@@ -29,7 +29,7 @@ public class LoginActivity extends AppCompatActivity {
     private ImageView togglePassword;
     private boolean isPasswordVisible = false;
 
-
+    private TextView forgotpass;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,6 +38,7 @@ public class LoginActivity extends AppCompatActivity {
 
         phoneEditText = findViewById(R.id.phoneNumber);
         passwordEditText = findViewById(R.id.password);
+        forgotpass = findViewById(R.id.forgotpassword);
 
         // Добавляем маску для номера телефона
         phoneEditText.addTextChangedListener(new PhoneNumberTextWatcher(phoneEditText));
@@ -55,6 +56,14 @@ public class LoginActivity extends AppCompatActivity {
                 startActivity(intent);
             });
         }
+
+        forgotpass.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(LoginActivity.this, ForgotPasswordActivity.class);
+                startActivity(intent);
+            }
+        });
 
         togglePassword.setOnClickListener(view -> {
             if (isPasswordVisible) {

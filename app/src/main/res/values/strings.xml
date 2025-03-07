@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">CfePrjct</string>
+    <string name="forgot_pass"><u>Забыли пароль?</u></string>
 </resources>
