@@ -25,4 +25,9 @@ public interface UserDAO {
     @Query("SELECT * FROM users WHERE email = :email LIMIT 1")
     User getUserByEmail(String email);
 
+    @Query("UPDATE users SET password = :resetCode WHERE email = :email")
+    void updateResetCode(String email, String resetCode);
+
+
+
 }

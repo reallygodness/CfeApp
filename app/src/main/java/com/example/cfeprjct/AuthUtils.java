@@ -4,6 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Patterns;
 
+import java.util.Random;
+
 public class AuthUtils {
     private static final String PREF_NAME = "user_preferences";
     private static final String KEY_IS_LOGGED_IN = "is_logged_in";
@@ -37,4 +39,9 @@ public class AuthUtils {
     public static boolean isValidEmail(String email) {
         return email != null && Patterns.EMAIL_ADDRESS.matcher(email).matches();
     }
+
+    public static String generateResetCode() {
+        return String.valueOf(new Random().nextInt(900000) + 100000); // Генерируем 6-значный код
+    }
+
 }

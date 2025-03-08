@@ -5,20 +5,14 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
-import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
+import com.example.cfeprjct.AppDatabase;
+import com.example.cfeprjct.AuthUtils;
 import com.example.cfeprjct.R;
-import com.example.cfeprjct.api.ApiClient;
-import com.example.cfeprjct.api.ApiService;
-import com.example.cfeprjct.api.ResetPasswordRequest;
-
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
+import com.example.cfeprjct.User;
+import com.example.cfeprjct.UserDAO;
+import com.example.cfeprjct.api.EmailSender;
 
 public class ForgotPasswordActivity extends AppCompatActivity {
 
@@ -33,36 +27,38 @@ public class ForgotPasswordActivity extends AppCompatActivity {
         etEmail = findViewById(R.id.etEmail);
         btnResetPassword = findViewById(R.id.btnsendcode);
 
-        btnResetPassword.setOnClickListener(v -> sendResetRequest());
+        btnResetPassword.setOnClickListener(v -> sendResetCode());
     }
 
-    private void sendResetRequest() {
+    private void sendResetCode() {
         String email = etEmail.getText().toString().trim();
-
-        if (!android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()) {
+        if (!AuthUtils.isValidEmail(email)) {
             Toast.makeText(this, "Введите корректный email", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        ApiService apiService = ApiClient.getClient().create(ApiService.class);
-        ResetPasswordRequest request = new ResetPasswordRequest(email);
+        new Thread(() -> {
+            AppDatabase db = AppDatabase.getInstance(getApplicationContext());
+            UserDAO userDAO = db.userDAO();
+            User user = userDAO.getUserByEmail(email);
 
-        apiService.resetPassword(request).enqueue(new Callback<Void>() {
-            @Override
-            public void onResponse(Call<Void> call, Response<Void> response) {
-                if (response.isSuccessful()) {
-                    Toast.makeText(ForgotPasswordActivity.this, "Код отправлен на email", Toast.LENGTH_SHORT).show();
-                    // Переход на экран ввода кода (реализуем далее)
-                } else {
-                    Toast.makeText(ForgotPasswordActivity.this, "Ошибка: email не найден", Toast.LENGTH_SHORT).show();
-                }
-            }
+            if (user != null) {
+                String resetCode = AuthUtils.generateResetCode();
+                userDAO.updateResetCode(email, resetCode);
 
-            @Override
-            public void onFailure(Call<Void> call, Throwable t) {
-                Toast.makeText(ForgotPasswordActivity.this, "Ошибка сети", Toast.LENGTH_SHORT).show();
+                boolean emailSent = EmailSender.sendEmail(email, "Восстановление пароля", "Ваш код: " + resetCode);
+                runOnUiThread(() -> {
+                    if (emailSent) {
+                        Toast.makeText(this, "Код отправлен на email", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(this, "Ошибка отправки email", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            } else {
+                runOnUiThread(() -> Toast.makeText(this, "Email не найден", Toast.LENGTH_SHORT).show());
             }
-        });
+        }).start();
     }
+
 
 }
