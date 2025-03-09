@@ -41,7 +41,10 @@ public class AuthUtils {
     }
 
     public static String generateResetCode() {
-        return String.valueOf(new Random().nextInt(900000) + 100000); // Генерируем 6-значный код
+        Random random = new Random();
+        int code = 100000 + random.nextInt(900000);
+        return String.valueOf(code);
     }
+
 
 }

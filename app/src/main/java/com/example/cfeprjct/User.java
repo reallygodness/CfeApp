@@ -13,7 +13,9 @@ public class User {
     private String lastName;
     private String email;
     private String phoneNumber;
-    private String password;  // Если хотите хранить пароль
+
+    private String resetCode;
+    private String password;  // для хранения пароля
 
     // Конструкторы, геттеры и сеттеры
 
@@ -77,4 +79,13 @@ public class User {
     public void setPassword(String password) {
         this.password = password;
     }
+
+    public String getResetCode() {
+        return resetCode;
+    }
+
+    public void setResetCode(String resetCode) {
+        this.resetCode = resetCode;
+    }
+
 }
