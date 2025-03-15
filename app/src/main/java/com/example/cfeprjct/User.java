@@ -17,6 +17,10 @@ public class User {
     private String resetCode;
     private String password;  // для хранения пароля
 
+
+
+    private byte[] profileImage;
+
     // Конструкторы, геттеры и сеттеры
 
     public User(String firstName, String lastName, String email, String phoneNumber, String password) {
@@ -86,6 +90,13 @@ public class User {
 
     public void setResetCode(String resetCode) {
         this.resetCode = resetCode;
+    }
+
+    public byte[] getProfileImage() {
+        return profileImage;
+    }
+    public void setProfileImage(byte[] profileImage) {
+        this.profileImage = profileImage;
     }
 
 }

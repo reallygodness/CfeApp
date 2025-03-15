@@ -1,13 +1,22 @@
 package com.example.cfeprjct.Activities;
 
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.util.Patterns;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultCallback;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.room.Room;
 
@@ -16,15 +25,25 @@ import com.example.cfeprjct.AuthUtils;
 import com.example.cfeprjct.R;
 import com.example.cfeprjct.User;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+
 public class ProfileActivity extends AppCompatActivity {
 
     private TextView firstNameTextView, lastNameTextView, emailTextView, phoneNumberTextView;
     private EditText firstNameEditText, lastNameEditText, emailEditText, phoneNumberEditText;
     private Button saveButton, editProfileButton;
 
+    private ImageView profileImageView;
+
     private AppDatabase db;
     private String phoneNumber;  // Хранит изначальный номер телефона пользователя
     private boolean isEditing = false;
+
+    private static final String IMAGE_DIRECTORY = "profile_images";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -46,11 +65,15 @@ public class ProfileActivity extends AppCompatActivity {
         phoneNumberEditText = findViewById(R.id.phoneNumberEditText);
         saveButton = findViewById(R.id.saveButton);
         editProfileButton = findViewById(R.id.editProfileButton);
+        profileImageView = findViewById(R.id.profileImageView);
 
         // Получаем номер телефона из Intent
         phoneNumber = getIntent().getStringExtra("phoneNumber");
 
         updateUI();
+
+        // Добавляем обработчик нажатия на изображение профиля
+        profileImageView.setOnClickListener(v -> openGallery());
     }
 
     public void updateUI() {
@@ -69,6 +92,13 @@ public class ProfileActivity extends AppCompatActivity {
                         lastNameEditText.setText(user.getLastName());
                         emailEditText.setText(user.getEmail());
                         phoneNumberEditText.setText(user.getPhoneNumber());
+
+                        if (user.getProfileImage() != null) {
+                            Bitmap bitmap = BitmapFactory.decodeByteArray(user.getProfileImage(), 0, user.getProfileImage().length);
+                            profileImageView.setImageBitmap(bitmap);
+                        } else {
+                            profileImageView.setImageResource(R.drawable.grayprofile);
+                        }
                     });
                 }
             }).start();
@@ -150,4 +180,51 @@ public class ProfileActivity extends AppCompatActivity {
         startActivity(intent);
         finish();
     }
+
+    private void openGallery() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        galleryLauncher.launch(intent);
+    }
+
+    private final androidx.activity.result.ActivityResultLauncher<Intent> galleryLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
+                    new ActivityResultCallback<ActivityResult>() {
+                        @Override
+                        public void onActivityResult(ActivityResult result) {
+                            if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                                Uri imageUri = result.getData().getData();
+                                saveImageToDatabase(imageUri);
+                            }
+                        }
+                    });
+
+    private void saveImageToDatabase(Uri imageUri) {
+        try (InputStream inputStream = getContentResolver().openInputStream(imageUri);
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+
+            Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
+            byte[] imageBytes = outputStream.toByteArray();
+
+            new Thread(() -> {
+                User user = db.userDAO().getUserByPhoneNumber(phoneNumber);
+                if (user != null) {
+                    user.setProfileImage(imageBytes);
+                    db.userDAO().updateUser(user);
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, "Фото профиля обновлено", Toast.LENGTH_SHORT).show();
+                        profileImageView.setImageBitmap(bitmap);
+                    });
+                }
+            }).start();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+            Toast.makeText(this, "Ошибка при загрузке изображения", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+
+
+
 }

@@ -5,16 +5,6 @@
     android:orientation="vertical"
     android:padding="16dp">
 
-    <ImageView
-        android:id="@+id/profileImageView"
-        android:layout_width="150dp"
-        android:layout_height="150dp"
-        android:scaleType="centerCrop"
-        android:src="@drawable/grayprofile"
-        android:background="@android:color/darker_gray"
-        android:layout_marginBottom="16dp"
-        android:clipToOutline="true"/>
-
     <!-- Разделение имени и фамилии -->
     <TextView
         android:id="@+id/firstNameTextView"
