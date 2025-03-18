@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.util.Log;
 import android.util.Patterns;
 import android.view.View;
 import android.widget.Button;
@@ -35,7 +36,7 @@ public class ProfileActivity extends AppCompatActivity {
 
     private TextView firstNameTextView, lastNameTextView, emailTextView, phoneNumberTextView;
     private EditText firstNameEditText, lastNameEditText, emailEditText, phoneNumberEditText;
-    private Button saveButton, editProfileButton;
+    private Button saveButton, editProfileButton, logoutButton;
 
     private ImageView profileImageView;
 
@@ -43,7 +44,9 @@ public class ProfileActivity extends AppCompatActivity {
     private String phoneNumber;  // Хранит изначальный номер телефона пользователя
     private boolean isEditing = false;
 
-    private static final String IMAGE_DIRECTORY = "profile_images";
+    private TextView fullNameTextView; // Добавляем переменную
+
+    private byte[] selectedImageBytes = null; // Переменная для временного хранения фото
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,8 +58,7 @@ public class ProfileActivity extends AppCompatActivity {
                 .build();
 
         // Инициализация UI компонентов
-        firstNameTextView = findViewById(R.id.firstNameTextView);
-        lastNameTextView = findViewById(R.id.lastNameTextView);
+        fullNameTextView = findViewById(R.id.fullNameTextView); // Инициализация
         emailTextView = findViewById(R.id.emailTextView);
         phoneNumberTextView = findViewById(R.id.phoneNumberTextView);
         firstNameEditText = findViewById(R.id.firstNameEditText);
@@ -66,11 +68,14 @@ public class ProfileActivity extends AppCompatActivity {
         saveButton = findViewById(R.id.saveButton);
         editProfileButton = findViewById(R.id.editProfileButton);
         profileImageView = findViewById(R.id.profileImageView);
+        logoutButton = findViewById(R.id.logoutButton);
 
         // Получаем номер телефона из Intent
         phoneNumber = getIntent().getStringExtra("phoneNumber");
 
         updateUI();
+
+        profileImageView.setEnabled(false);
 
         // Добавляем обработчик нажатия на изображение профиля
         profileImageView.setOnClickListener(v -> openGallery());
@@ -82,8 +87,7 @@ public class ProfileActivity extends AppCompatActivity {
                 User user = db.userDAO().getUserByPhoneNumber(phoneNumber);
                 if (user != null) {
                     runOnUiThread(() -> {
-                        firstNameTextView.setText("Имя: " + user.getFirstName());
-                        lastNameTextView.setText("Фамилия: " + user.getLastName());
+                        fullNameTextView.setText(user.getFirstName() + " " + user.getLastName()); // Объединяем имя и фамилию
                         emailTextView.setText("Email: " + user.getEmail());
                         phoneNumberTextView.setText("Номер телефона: +" + user.getPhoneNumber());
 
@@ -108,18 +112,19 @@ public class ProfileActivity extends AppCompatActivity {
     public void editProfile(View view) {
         if (!isEditing) {
             isEditing = true;
-            firstNameTextView.setVisibility(View.GONE);
-            lastNameTextView.setVisibility(View.GONE);
+            fullNameTextView.setVisibility(View.GONE);
             emailTextView.setVisibility(View.GONE);
             phoneNumberTextView.setVisibility(View.GONE);
             editProfileButton.setVisibility(View.GONE);
-
+            logoutButton.setVisibility(View.GONE);
 
             firstNameEditText.setVisibility(View.VISIBLE);
             lastNameEditText.setVisibility(View.VISIBLE);
             emailEditText.setVisibility(View.VISIBLE);
             phoneNumberEditText.setVisibility(View.VISIBLE);
             saveButton.setVisibility(View.VISIBLE);
+
+            profileImageView.setEnabled(true);
         }
     }
 
@@ -148,6 +153,13 @@ public class ProfileActivity extends AppCompatActivity {
                 user.setEmail(newEmail);
                 user.setPhoneNumber(newPhoneNumber);
 
+                if (selectedImageBytes != null) {
+                    user.setProfileImage(selectedImageBytes);
+                    selectedImageBytes = null; // Сбрасываем после сохранения
+                }
+
+                Log.d("ProfileActivity", "Фото обновляется: " + (user.getProfileImage() != null));
+
                 db.userDAO().updateUser(user);
 
                 // После успешного обновления меняем phoneNumber на новый
@@ -158,17 +170,20 @@ public class ProfileActivity extends AppCompatActivity {
                     Toast.makeText(ProfileActivity.this, "Профиль обновлен!", Toast.LENGTH_SHORT).show();
 
                     isEditing = false;
-                    firstNameTextView.setVisibility(View.VISIBLE);
-                    lastNameTextView.setVisibility(View.VISIBLE);
+                    fullNameTextView.setVisibility(View.VISIBLE);
                     emailTextView.setVisibility(View.VISIBLE);
                     phoneNumberTextView.setVisibility(View.VISIBLE);
                     editProfileButton.setVisibility(View.VISIBLE);
+                    logoutButton.setVisibility(View.VISIBLE);
 
                     firstNameEditText.setVisibility(View.GONE);
                     lastNameEditText.setVisibility(View.GONE);
                     emailEditText.setVisibility(View.GONE);
                     phoneNumberEditText.setVisibility(View.GONE);
                     saveButton.setVisibility(View.GONE);
+
+
+                    profileImageView.setEnabled(false);
                 });
             }
         }).start();
@@ -204,25 +219,21 @@ public class ProfileActivity extends AppCompatActivity {
 
             Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
             bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
-            byte[] imageBytes = outputStream.toByteArray();
+            selectedImageBytes = outputStream.toByteArray(); // ✅ Сохраняем фото в переменную
 
-            new Thread(() -> {
-                User user = db.userDAO().getUserByPhoneNumber(phoneNumber);
-                if (user != null) {
-                    user.setProfileImage(imageBytes);
-                    db.userDAO().updateUser(user);
-                    runOnUiThread(() -> {
-                        Toast.makeText(this, "Фото профиля обновлено", Toast.LENGTH_SHORT).show();
-                        profileImageView.setImageBitmap(bitmap);
-                    });
-                }
-            }).start();
+            runOnUiThread(() -> {
+                Toast.makeText(this, "Фото загружено, нажмите 'Сохранить изменения'", Toast.LENGTH_SHORT).show();
+                profileImageView.setImageBitmap(bitmap);
+            });
 
         } catch (IOException e) {
             e.printStackTrace();
             Toast.makeText(this, "Ошибка при загрузке изображения", Toast.LENGTH_SHORT).show();
         }
     }
+
+
+
 
 
 

@@ -37,6 +37,10 @@ public interface UserDAO {
     @Query("UPDATE users SET password = :newPassword WHERE email = :email")
     void updatePassword(String email, String newPassword);
 
+    @Query("UPDATE users SET profileImage = :image WHERE phoneNumber = :phone")
+    void updateProfileImage(String phone, byte[] image);
+
+
 
 
 

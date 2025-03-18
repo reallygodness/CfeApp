@@ -2,12 +2,36 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:background="@color/background_white"
     android:orientation="vertical"
+    android:gravity="center_horizontal"
     android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Профиль"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:fontFamily="@font/fontregular"
+        android:textColor="@color/black"
+        android:layout_marginBottom="16dp"/>
+
+    <ImageView
+        android:id="@+id/profileImageView"
+        android:layout_width="200dp"
+        android:layout_height="200dp"
+        android:scaleType="centerCrop"
+        android:src="@drawable/grayprofile"
+        android:background="@android:color/darker_gray"
+        android:layout_marginBottom="16dp"
+        android:clipToOutline="true"/>
 
     <!-- Разделение имени и фамилии -->
     <TextView
         android:id="@+id/firstNameTextView"
+        android:textColor="@color/black"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Имя: "
@@ -16,6 +40,7 @@
 
     <TextView
         android:id="@+id/lastNameTextView"
+        android:textColor="@color/black"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Фамилия: "
@@ -24,6 +49,7 @@
 
     <TextView
         android:id="@+id/emailTextView"
+        android:textColor="@color/black"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Email: "
@@ -32,6 +58,7 @@
 
     <TextView
         android:id="@+id/phoneNumberTextView"
+        android:textColor="@color/black"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Номер телефона: "
@@ -41,14 +68,20 @@
     <!-- Кнопка для редактирования профиля -->
     <Button
         android:id="@+id/editProfileButton"
+        android:textColor="@color/white"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="@drawable/button_rounded"
+        app:backgroundTint="@null"
         android:text="Редактировать профиль"
+        android:textAllCaps="false"
+        android:textSize="18sp"
         android:onClick="editProfile"/>
 
     <!-- Поля для редактирования, скрыты изначально -->
     <EditText
         android:id="@+id/firstNameEditText"
+        android:textColor="@color/black"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Имя"
@@ -58,6 +91,7 @@
 
     <EditText
         android:id="@+id/lastNameEditText"
+        android:textColor="@color/black"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Фамилия"
@@ -67,6 +101,7 @@
 
     <EditText
         android:id="@+id/emailEditText"
+        android:textColor="@color/black"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Email"
@@ -76,6 +111,7 @@
 
     <EditText
         android:id="@+id/phoneNumberEditText"
+        android:textColor="@color/black"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:maxLength="11"
@@ -90,13 +126,20 @@
         android:layout_height="wrap_content"
         android:text="Сохранить изменения"
         android:onClick="saveProfileChanges"
+        android:background="@drawable/button_rounded"
+        app:backgroundTint="@null"
         android:visibility="gone" />
 
     <Button
         android:id="@+id/logoutButton"
+        android:textAllCaps="false"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:background="@drawable/button_rounded_gray"
+        android:textColor="@color/black"
+        app:backgroundTint="@null"
         android:text="Выход"
+        android:textSize="18sp"
         android:layout_marginTop="20dp"
         android:layout_gravity="center_horizontal"
         android:onClick="logout" />

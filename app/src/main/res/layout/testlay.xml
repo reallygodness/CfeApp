@@ -25,6 +25,7 @@
 
         <!-- Фото профиля -->
         <ImageView
+            android:id="@+id/profileImageView"
             android:layout_width="200dp"
             android:layout_height="200dp"
             android:scaleType="centerCrop"
@@ -36,7 +37,7 @@
             android:id="@+id/firstNameTextView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Allison"
+            android:hint="Имя"
             android:textSize="20sp"
             android:textStyle="bold"
             android:fontFamily="@font/fontregular"
@@ -45,35 +46,37 @@
 
         <!-- Username -->
         <TextView
+            android:hint="Фамилия"
             android:id="@+id/lastNameTextView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="allisonw2043"
             android:textSize="14sp"
             android:textColor="@color/gray"
             android:layout_marginBottom="4dp"/>
 
         <!-- Email -->
         <TextView
-
+            android:id="@+id/emailTextView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="allison@gmail.com"
+            android:hint="email"
             android:textSize="14sp"
             android:textColor="@color/gray"
             android:layout_marginBottom="4dp"/>
 
         <!-- Телефон -->
         <TextView
+            android:id="@+id/phoneNumberTextView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="415-333-9090"
+            android:hint="Номер телефона"
             android:textSize="14sp"
             android:textColor="@color/gray"
             android:layout_marginBottom="16dp"/>
 
         <!-- Кнопка "Edit Profile" -->
         <Button
+            android:id="@+id/editProfileButton"
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:text="Редактировать"
@@ -83,11 +86,50 @@
             android:fontFamily="@font/fontregular"
             android:textColor="@color/white"
             app:backgroundTint="@null"
+            android:onClick="editProfile"
             android:background="@drawable/button_rounded"
             android:layout_marginBottom="8dp"/>
 
+        <EditText
+            android:id="@+id/firstNameEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Имя"
+            android:textSize="18sp"
+            android:visibility="gone"
+            android:paddingBottom="8dp" />
+
+        <EditText
+            android:id="@+id/lastNameEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Фамилия"
+            android:textSize="18sp"
+            android:visibility="gone"
+            android:paddingBottom="8dp" />
+
+        <EditText
+            android:id="@+id/emailEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Email"
+            android:textSize="18sp"
+            android:visibility="gone"
+            android:paddingBottom="8dp" />
+
+        <EditText
+            android:id="@+id/phoneNumberEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLength="11"
+            android:hint="Номер телефона"
+            android:textSize="18sp"
+            android:visibility="gone"
+            android:paddingBottom="8dp" />
+
         <!-- Кнопка "Logout" -->
         <Button
+            android:id="@+id/logoutButton"
             android:layout_width="match_parent"
             android:layout_height="48dp"
             android:text="Выйти"
@@ -97,6 +139,7 @@
             android:fontFamily="@font/fontregular"
             android:background="@drawable/button_rounded_gray"
             android:textColor="@color/black"
+            android:onClick="logout"
             app:backgroundTint="@null"/>
 
     </LinearLayout>
