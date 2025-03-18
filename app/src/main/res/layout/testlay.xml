@@ -1,79 +1,103 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:gravity="center"
-    android:padding="24dp"
-    android:background="@color/white">
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:background="@color/white"
+    android:padding="16dp">
 
-    <ImageView
-        android:layout_width="273dp"
-        android:layout_height="228dp"
-        android:layout_marginTop="-50dp"
-        android:layout_marginBottom="-20dp"
-        android:contentDescription="Coffee Image"
-        android:scaleType="fitCenter"
-        android:src="@drawable/coffee" />
-
-    <EditText
-        android:id="@+id/phoneNumber"
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:hint="Номер телефона"
-        android:background="@drawable/edit_text_bg"
-        android:padding="16dp"
-        android:textColorHint="#9B6B43"
-        android:textSize="16sp"
-        android:textColor="@color/black"
-        android:layout_marginTop="12dp"/>
-
-    <EditText
-        android:id="@+id/password"
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:hint="Пароль"
-        android:background="@drawable/edit_text_bg"
-        android:padding="16dp"
-        android:textColorHint="#9B6B43"
-        android:textSize="16sp"
-        android:textColor="@color/black"
-        android:layout_marginTop="12dp"/>
-
-
-
-    <Button
-        android:id="@+id/btnlogin"
-        android:layout_marginTop="24dp"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textAllCaps="false"
-        android:background="@drawable/button_rounded"
-        android:clickable="true"
-        android:focusable="true"
-        android:padding="12dp"
-        android:text="Войти"
-        android:onClick="login"
-        android:textColor="@color/white"
-        android:textSize="18sp"
-        app:backgroundTint="@null" />
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
 
-    <Button
-        android:id="@+id/btnregister"
-        android:layout_marginTop="24dp"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textAllCaps="false"
-        android:background="@drawable/button_rounded_gray"
-        android:clickable="true"
-        android:focusable="true"
-        android:padding="12dp"
-        android:text="Зарегистрироваться"
-        android:textColor="@color/black"
-        android:textSize="18sp"
-        app:backgroundTint="@null" />
+        <!-- Заголовок -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Профиль"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:fontFamily="@font/fontregular"
+            android:textColor="@color/black"
+            android:layout_marginBottom="16dp"/>
 
-</LinearLayout>
+        <!-- Фото профиля -->
+        <ImageView
+            android:layout_width="200dp"
+            android:layout_height="200dp"
+            android:scaleType="centerCrop"
+            android:background="@drawable/grayprofile"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Имя пользователя -->
+        <TextView
+            android:id="@+id/firstNameTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Allison"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:fontFamily="@font/fontregular"
+            android:textColor="@color/black"
+            android:layout_marginBottom="4dp"/>
+
+        <!-- Username -->
+        <TextView
+            android:id="@+id/lastNameTextView"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="allisonw2043"
+            android:textSize="14sp"
+            android:textColor="@color/gray"
+            android:layout_marginBottom="4dp"/>
+
+        <!-- Email -->
+        <TextView
+
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="allison@gmail.com"
+            android:textSize="14sp"
+            android:textColor="@color/gray"
+            android:layout_marginBottom="4dp"/>
+
+        <!-- Телефон -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="415-333-9090"
+            android:textSize="14sp"
+            android:textColor="@color/gray"
+            android:layout_marginBottom="16dp"/>
+
+        <!-- Кнопка "Edit Profile" -->
+        <Button
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="Редактировать"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:fontFamily="@font/fontregular"
+            android:textColor="@color/white"
+            app:backgroundTint="@null"
+            android:background="@drawable/button_rounded"
+            android:layout_marginBottom="8dp"/>
+
+        <!-- Кнопка "Logout" -->
+        <Button
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="Выйти"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:fontFamily="@font/fontregular"
+            android:background="@drawable/button_rounded_gray"
+            android:textColor="@color/black"
+            app:backgroundTint="@null"/>
+
+    </LinearLayout>
+</ScrollView>
