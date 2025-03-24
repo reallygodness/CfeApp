@@ -104,7 +104,7 @@ public class LoginActivity extends AppCompatActivity {
                 // Если данные правильные, сохраняем информацию о пользователе
                 AuthUtils.setLoggedIn(LoginActivity.this, true, phoneNumber);
                 // Переходим в профиль
-                Intent intent = new Intent(LoginActivity.this, ProfileActivity.class);
+                Intent intent = new Intent(LoginActivity.this, MainActivity.class);
                 intent.putExtra("phoneNumber", phoneNumber);  // Передаем номер телефона для получения данных профиля
                 startActivity(intent);
                 finish();

@@ -38,7 +38,7 @@ public class WelcomeActivity extends AppCompatActivity {
         if (AuthUtils.isLoggedIn(this)) {
             // Если авторизован, переходим в профиль
             String userPhone = AuthUtils.getLoggedInPhone(this);
-            Intent intent = new Intent(this, ProfileActivity.class);
+            Intent intent = new Intent(this, MainActivity.class);
             intent.putExtra("phoneNumber", userPhone);  // Передаем номер телефона для получения данных профиля
             startActivity(intent);
             finish();

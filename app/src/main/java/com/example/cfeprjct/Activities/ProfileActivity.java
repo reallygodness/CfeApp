@@ -96,7 +96,6 @@ public class ProfileActivity extends AppCompatActivity {
                         lastNameEditText.setText(user.getLastName());
                         emailEditText.setText(user.getEmail());
                         phoneNumberEditText.setText(user.getPhoneNumber());
-
                         if (user.getProfileImage() != null) {
                             Bitmap bitmap = BitmapFactory.decodeByteArray(user.getProfileImage(), 0, user.getProfileImage().length);
                             profileImageView.setImageBitmap(bitmap);
@@ -219,7 +218,7 @@ public class ProfileActivity extends AppCompatActivity {
 
             Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
             bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
-            selectedImageBytes = outputStream.toByteArray(); // ✅ Сохраняем фото в переменную
+            selectedImageBytes = outputStream.toByteArray(); // Сохраняем фото в переменную
 
             runOnUiThread(() -> {
                 Toast.makeText(this, "Фото загружено, нажмите 'Сохранить изменения'", Toast.LENGTH_SHORT).show();

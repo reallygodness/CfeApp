@@ -16,4 +16,5 @@
     <color name="brown_hint">#9B6B43</color>
     <color name="background_white">#F9F9F9</color>
     <color name="gray_button">#F2EDE8</color>
+    <color name="orange_button">#C67C4E</color>
 </resources>
