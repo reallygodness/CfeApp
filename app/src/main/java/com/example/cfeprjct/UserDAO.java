@@ -5,6 +5,8 @@ import androidx.room.Insert;
 import androidx.room.Query;
 import androidx.room.Update;
 
+import java.util.List;
+
 @Dao
 public interface UserDAO {
     @Insert
@@ -40,7 +42,8 @@ public interface UserDAO {
     @Query("UPDATE users SET profileImage = :image WHERE phoneNumber = :phone")
     void updateProfileImage(String phone, byte[] image);
 
-
+    @Query("SELECT * FROM users")
+    List<User> getAllUsers(); // Получить всех пользователей
 
 
 

@@ -46,6 +46,6 @@ public class WelcomeActivity extends AppCompatActivity {
             // Если не авторизован, показываем экран авторизации
             return;
         }
-          // Закрываем MainActivity, так как нам нужно перейти на другой экран
+
     }
 }

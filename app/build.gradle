@@ -1,6 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
-    id ("com.google.gms.google-services")
+    alias(libs.plugins.gms)
 }
 
 android {
@@ -35,6 +35,7 @@ android {
 }
 
 dependencies {
+    implementation 'com.google.firebase:firebase-firestore:24.9.1'
     implementation 'androidx.room:room-runtime:2.5.0'
 
     implementation platform('com.google.firebase:firebase-bom:33.10.0')
@@ -48,6 +49,8 @@ dependencies {
     implementation 'com.sun.mail:android-activation:1.6.7'
 
     implementation libs.activity
+    implementation platform(libs.firebase.bom)
+    implementation (libs.firebase.firestore)
     implementation libs.constraintlayout
     annotationProcessor 'androidx.room:room-compiler:2.5.0'  // Для генерации кода
     implementation 'androidx.lifecycle:lifecycle-livedata-ktx:2.5.0'  // Для использования LiveData (если потребуется)
