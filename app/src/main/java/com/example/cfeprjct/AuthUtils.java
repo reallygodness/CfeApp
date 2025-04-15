@@ -9,30 +9,39 @@ import java.util.Random;
 public class AuthUtils {
     private static final String PREF_NAME = "user_preferences";
     private static final String KEY_IS_LOGGED_IN = "is_logged_in";
-    private static final String KEY_USER_PHONE = "user_phone";
+    private static final String KEY_USER_ID = "user_Id"; // Храним только userId
 
-    public static void setLoggedIn(Context context, boolean isLoggedIn, String phoneNumber) {
+    // Сохраняем состояние входа и userId
+    public static void setLoggedIn(Context context, boolean isLoggedIn, String userId) {
         SharedPreferences sharedPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putBoolean(KEY_IS_LOGGED_IN, isLoggedIn);
-
         if (isLoggedIn) {
-            editor.putString(KEY_USER_PHONE, phoneNumber);  // Сохраняем номер телефона
+            editor.putString(KEY_USER_ID, userId);
         } else {
-            editor.remove(KEY_USER_PHONE);  // Убираем номер телефона при выходе
+            editor.remove(KEY_USER_ID);
         }
-
         editor.apply();
     }
 
-    public static boolean isLoggedIn(Context context) {
-        SharedPreferences sharedPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        return sharedPreferences.getBoolean(KEY_IS_LOGGED_IN, false);  // По умолчанию - false
+    // Получаем сохранённый userId
+    public static String getLoggedInUserId(Context context) {
+        return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .getString(KEY_USER_ID, null);
     }
 
-    public static String getLoggedInPhone(Context context) {
+    // Проверяем, авторизован ли пользователь
+    public static boolean isLoggedIn(Context context) {
+        return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
+                .getBoolean(KEY_IS_LOGGED_IN, false);
+    }
+
+    // Очищает данные авторизации
+    public static void clearLogin(Context context) {
         SharedPreferences sharedPreferences = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        return sharedPreferences.getString(KEY_USER_PHONE, null);  // Возвращает null, если нет сохраненного номера
+        SharedPreferences.Editor editor = sharedPreferences.edit();
+        editor.clear();
+        editor.apply();
     }
 
     // Проверка email
@@ -40,11 +49,10 @@ public class AuthUtils {
         return email != null && Patterns.EMAIL_ADDRESS.matcher(email).matches();
     }
 
+    // Генерация кода для восстановления пароля
     public static String generateResetCode() {
         Random random = new Random();
         int code = 100000 + random.nextInt(900000);
         return String.valueOf(code);
     }
-
-
 }

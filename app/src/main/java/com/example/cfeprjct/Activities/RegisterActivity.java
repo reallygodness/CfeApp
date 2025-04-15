@@ -7,30 +7,28 @@ import android.text.Editable;
 import android.text.TextWatcher;
 import android.text.method.HideReturnsTransformationMethod;
 import android.text.method.PasswordTransformationMethod;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.cfeprjct.AppDatabase;
 import com.example.cfeprjct.AuthUtils;
 import com.example.cfeprjct.PhoneNumberTextWatcher;
 import com.example.cfeprjct.R;
-import com.example.cfeprjct.User;
+import com.example.cfeprjct.UserRepository;
 
 public class RegisterActivity extends AppCompatActivity {
 
     private EditText editTextPassword, firstNameEditText, lastNameEditText, emailEditText, phoneEditText, passwordEditText;
     private TextView requirementLength, requirementUpperLower, requirementDigit, requirementSpecial, requirementNoSpaces;
-
     private TextView link_to_login;
     private Button buttonRegister;
-
     private AppDatabase db;
-
+    private UserRepository userRepository;
     private ImageView togglePassword;
     private boolean isPasswordVisible = false;
 
@@ -53,30 +51,26 @@ public class RegisterActivity extends AppCompatActivity {
         phoneEditText = findViewById(R.id.phoneNumber);
         passwordEditText = findViewById(R.id.password);
         togglePassword = findViewById(R.id.togglePassword);
-
         link_to_login = findViewById(R.id.loginLink);
+
+        // Инициализируем репозиторий и базу
+        userRepository = new UserRepository(this);
+        db = AppDatabase.getInstance(this);
 
         // Добавляем маску для телефона
         phoneEditText.addTextChangedListener(new PhoneNumberTextWatcher(phoneEditText));
 
-        db = AppDatabase.getInstance(this);
-
-        link_to_login.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
-                startActivity(intent);
-                finish();
-            }
+        // Переход к экрану авторизации
+        link_to_login.setOnClickListener(v -> {
+            Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
+            startActivity(intent);
+            finish();
         });
 
+        // Обновляем требования к паролю при вводе
         editTextPassword.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {}
-
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {}
             @Override
             public void afterTextChanged(Editable s) {
                 updatePasswordValidation(s.toString());
@@ -89,21 +83,20 @@ public class RegisterActivity extends AppCompatActivity {
                 Toast.makeText(RegisterActivity.this, "Пароль не соответствует требованиям", Toast.LENGTH_LONG).show();
                 return;
             }
+            // Здесь передаём пароль в открытом виде – UserRepository выполнит хэширование
             registerUser();
         });
 
         togglePassword.setOnClickListener(view -> {
             if (isPasswordVisible) {
-                // Скрываем пароль
                 passwordEditText.setTransformationMethod(PasswordTransformationMethod.getInstance());
                 togglePassword.setImageResource(R.drawable.ic_eye_closed);
             } else {
-                // Показываем пароль
                 passwordEditText.setTransformationMethod(HideReturnsTransformationMethod.getInstance());
                 togglePassword.setImageResource(R.drawable.ic_eye);
             }
             isPasswordVisible = !isPasswordVisible;
-            passwordEditText.setSelection(passwordEditText.getText().length()); // Ставим курсор в конец
+            passwordEditText.setSelection(passwordEditText.getText().length());
         });
     }
 
@@ -114,28 +107,24 @@ public class RegisterActivity extends AppCompatActivity {
         } else {
             requirementLength.setTextColor(Color.RED);
         }
-
         // Заглавная и строчная буква
         if (password.matches(".*[a-z].*") && password.matches(".*[A-Z].*")) {
             requirementUpperLower.setTextColor(Color.GREEN);
         } else {
             requirementUpperLower.setTextColor(Color.RED);
         }
-
         // Хотя бы одна цифра
         if (password.matches(".*\\d.*")) {
             requirementDigit.setTextColor(Color.GREEN);
         } else {
             requirementDigit.setTextColor(Color.RED);
         }
-
         // Хотя бы один спецсимвол
         if (password.matches(".*[@#$%^&+=!].*")) {
             requirementSpecial.setTextColor(Color.GREEN);
         } else {
             requirementSpecial.setTextColor(Color.RED);
         }
-
         // Без пробелов
         if (!password.contains(" ")) {
             requirementNoSpaces.setTextColor(Color.GREEN);
@@ -157,10 +146,11 @@ public class RegisterActivity extends AppCompatActivity {
         String firstName = firstNameEditText.getText().toString().trim();
         String lastName = lastNameEditText.getText().toString().trim();
         String email = emailEditText.getText().toString().trim();
-        String phoneNumber = phoneEditText.getText().toString().trim().replaceAll("\\D", ""); // Убираем символы
+        String phoneNumber = phoneEditText.getText().toString().trim().replaceAll("\\D", "");
         String password = passwordEditText.getText().toString().trim();
 
-        if (firstName.isEmpty() || lastName.isEmpty() || email.isEmpty() || phoneNumber.isEmpty() || password.isEmpty()) {
+        if (firstName.isEmpty() || lastName.isEmpty() || email.isEmpty() ||
+                phoneNumber.isEmpty() || password.isEmpty()) {
             Toast.makeText(this, "Заполните все поля!", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -180,27 +170,24 @@ public class RegisterActivity extends AppCompatActivity {
             return;
         }
 
-        new Thread(() -> {
-            User existingUser = db.userDAO().getUserByPhoneNumber(phoneNumber);
-            User existingUserEmail = db.userDAO().getUserByEmail(email);
-            if (existingUser != null) {
-                runOnUiThread(() -> Toast.makeText(RegisterActivity.this, "Пользователь с таким номером уже зарегистрирован!", Toast.LENGTH_SHORT).show());
-            }
-
-            if (existingUserEmail != null) {
-                runOnUiThread(() -> Toast.makeText(RegisterActivity.this, "Пользователь с таким email уже зарегистрирован!", Toast.LENGTH_SHORT).show());
-            }
-
-            else {
-                User newUser = new User(firstName, lastName, email, phoneNumber, password);
-                db.userDAO().insertUser(newUser);
+        // Вызываем метод регистрации с 6 аргументами:
+        // firstName, lastName, email, phoneNumber, password (plain text – в репозитории он будет хэширован),
+        // и обратный вызов (AuthCallback)
+        userRepository.registerUser(firstName, lastName, email, phoneNumber, password, new UserRepository.AuthCallback() {
+            @Override
+            public void onSuccess(String userId) {
                 runOnUiThread(() -> {
                     Toast.makeText(RegisterActivity.this, "Регистрация успешна!", Toast.LENGTH_SHORT).show();
+                    Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
+                    startActivity(intent);
                     finish();
                 });
             }
-        }).start();
+            @Override
+            public void onFailure(String errorMessage) {
+                runOnUiThread(() ->
+                        Toast.makeText(RegisterActivity.this, errorMessage, Toast.LENGTH_SHORT).show());
+            }
+        });
     }
-
 }
-

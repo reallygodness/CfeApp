@@ -36,16 +36,8 @@ public class WelcomeActivity extends AppCompatActivity {
         });
         // Проверяем, авторизован ли пользователь
         if (AuthUtils.isLoggedIn(this)) {
-            // Если авторизован, переходим в профиль
-            String userPhone = AuthUtils.getLoggedInPhone(this);
-            Intent intent = new Intent(this, MainActivity.class);
-            intent.putExtra("phoneNumber", userPhone);  // Передаем номер телефона для получения данных профиля
-            startActivity(intent);
+            startActivity(new Intent(this, MainActivity.class));
             finish();
-        } else {
-            // Если не авторизован, показываем экран авторизации
-            return;
         }
-
     }
 }

@@ -1,7 +1,9 @@
 package com.example.cfeprjct;
 
 import androidx.room.Dao;
+import androidx.room.Delete;
 import androidx.room.Insert;
+import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
 import androidx.room.Update;
 
@@ -9,8 +11,8 @@ import java.util.List;
 
 @Dao
 public interface UserDAO {
-    @Insert
-    long insertUser(User user);  // Метод для добавления пользователя
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    void insertUser(User user);
 
     @Query("SELECT * FROM users WHERE phoneNumber = :phoneNumber AND password = :password LIMIT 1")
     User authenticateUser(String phoneNumber, String password);  // Метод для аутентификации пользователя
@@ -42,9 +44,17 @@ public interface UserDAO {
     @Query("UPDATE users SET profileImage = :image WHERE phoneNumber = :phone")
     void updateProfileImage(String phone, byte[] image);
 
+    @Query("DELETE FROM users WHERE phoneNumber = :phoneNumber")
+    void deleteUserByPhoneNumber(String phoneNumber);
+
     @Query("SELECT * FROM users")
     List<User> getAllUsers(); // Получить всех пользователей
 
+    @Query("DELETE FROM users WHERE userId = :userId")
+    void deleteUserById(String userId);
+
+    @Query("SELECT * FROM users WHERE userId = :userId LIMIT 1")
+    User getUserById(String userId);
 
 
 

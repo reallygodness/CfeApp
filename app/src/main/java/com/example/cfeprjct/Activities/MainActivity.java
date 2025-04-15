@@ -59,4 +59,10 @@ public class MainActivity extends AppCompatActivity {
                 .replace(R.id.frame_container, fragment)
                 .commit();
     }
+
+    // MainActivity.java
+    public BottomNavigationView getBottomNavigationView() {
+        return (BottomNavigationView) findViewById(R.id.bottom_navigation); // Убедитесь, что id совпадает с вашим
+    }
+
 }

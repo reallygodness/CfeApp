@@ -23,39 +23,58 @@ public class MyApp extends Application {
     public void onCreate() {
         super.onCreate();
 
+        // Инициализируем Firestore
         firestore = FirebaseFirestore.getInstance();
+
+        // Инициализируем локальную базу данных (Room)
         localDb = Room.databaseBuilder(getApplicationContext(), AppDatabase.class, "app_database")
-                .allowMainThreadQueries() // Для тестов, лучше делать в отдельном потоке
+                .allowMainThreadQueries()
                 .build();
 
-        syncUsersToFirestore(); // Запуск переноса данных
+        syncUsersToFirestore(); // Запускаем синхронизацию данных при старте приложения
     }
 
     private void syncUsersToFirestore() {
         new Thread(() -> {
-            List<User> users = localDb.userDAO().getAllUsers(); // Получаем всех пользователей из Room
-            for (User user : users) {
-                Map<String, Object> userData = new HashMap<>();
-                userData.put("firstName", user.getFirstName());
-                userData.put("lastName", user.getLastName());
-                userData.put("email", user.getEmail());
-                userData.put("phoneNumber", user.getPhoneNumber());
-                userData.put("password", user.getPassword());
+            // Получаем локальную базу и всех пользователей
+            AppDatabase db = AppDatabase.getInstance(getApplicationContext());
+            List<User> users = db.userDAO().getAllUsers();
 
-                if (user.getProfileImage() != null) {
-                    String base64Image = encodeToBase64(user.getProfileImage()); // Конвертируем в Base64
-                    userData.put("profileImage", base64Image);
+            FirebaseFirestore firestore = FirebaseFirestore.getInstance();
+
+            for (User user : users) {
+                // Проверяем, что userId корректно задан
+                if (user == null || user.getUserId() == null || user.getUserId().isEmpty()) {
+                    Log.w("Firestore", "❗ Пропущен пользователь с пустым userId.");
+                    continue;
                 }
 
-                firestore.collection("users")
-                        .document(user.getPhoneNumber()) // Документ = номер телефона (уникальный ID)
-                        .set(userData)
-                        .addOnSuccessListener(aVoid -> Log.d("Firestore", "User uploaded: " + user.getPhoneNumber()))
-                        .addOnFailureListener(e -> Log.e("Firestore", "Error uploading user", e));
+                // Готовим карту данных для Firestore
+                Map<String, Object> userMap = new HashMap<>();
+                userMap.put("userId", user.getUserId());
+                userMap.put("firstName", user.getFirstName());
+                userMap.put("lastName", user.getLastName());
+                userMap.put("email", user.getEmail());
+                userMap.put("phoneNumber", user.getPhoneNumber());
+
+                // Добавляем пароль, если он установлен (хэшированная строка)
+                if (user.getPassword() != null) {
+                    userMap.put("password", user.getPassword());
+                }
+                // Если есть изображение профиля, кодируем в Base64
+                if (user.getProfileImage() != null) {
+                    userMap.put("profileImage", Base64.encodeToString(user.getProfileImage(), Base64.DEFAULT));
+                }
+
+                firestore.collection("users").document(user.getUserId())
+                        .set(userMap)
+                        .addOnSuccessListener(aVoid -> Log.d("Firestore", "✅ Пользователь синхронизирован: " + user.getUserId()))
+                        .addOnFailureListener(e -> Log.e("Firestore", "❌ Ошибка синхронизации", e));
             }
         }).start();
     }
 
+    // Вспомогательный метод для кодирования изображения в Base64 (если потребуется)
     private String encodeToBase64(byte[] imageBytes) {
         Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
         ByteArrayOutputStream baos = new ByteArrayOutputStream();

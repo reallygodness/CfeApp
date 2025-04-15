@@ -24,8 +24,10 @@ public class ForgotPasswordActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_forgot_password);
+
         etEmail = findViewById(R.id.etEmail);
         btnResetPassword = findViewById(R.id.btnsendcode);
+
         btnResetPassword.setOnClickListener(v -> sendResetCode());
     }
 
@@ -37,29 +39,36 @@ public class ForgotPasswordActivity extends AppCompatActivity {
         }
 
         new Thread(() -> {
+            // Получаем локальную базу и UserDAO
             AppDatabase db = AppDatabase.getInstance(getApplicationContext());
             UserDAO userDAO = db.userDAO();
+            // Ищем пользователя по email
             User user = userDAO.getUserByEmail(email);
 
             if (user != null) {
+                // Генерируем код восстановления
                 String resetCode = AuthUtils.generateResetCode();
+                // Обновляем код восстановления в локальной базе (и, возможно, синхронизируем с Firestore, если такой механизм реализован)
                 userDAO.updateResetCode(email, resetCode);
 
+                // Отправляем письмо с кодом (EmailSender — твой класс для отправки email)
                 boolean emailSent = EmailSender.sendEmail(email, "Восстановление пароля", "Ваш код: " + resetCode);
                 runOnUiThread(() -> {
                     if (emailSent) {
-                        Toast.makeText(this, "Код отправлен на email", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(ForgotPasswordActivity.this, "Код отправлен на email", Toast.LENGTH_SHORT).show();
+                        // Переходим на активность для подтверждения кода
                         Intent intent = new Intent(ForgotPasswordActivity.this, VerifyCodeActivity.class);
-                        intent.putExtra("email", email); // Передаем email
+                        intent.putExtra("email", email);
                         startActivity(intent);
                         finish();
-
                     } else {
-                        Toast.makeText(this, "Ошибка отправки email", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(ForgotPasswordActivity.this, "Ошибка отправки email", Toast.LENGTH_SHORT).show();
                     }
                 });
             } else {
-                runOnUiThread(() -> Toast.makeText(this, "Email не найден", Toast.LENGTH_SHORT).show());
+                runOnUiThread(() ->
+                        Toast.makeText(ForgotPasswordActivity.this, "Email не найден", Toast.LENGTH_SHORT).show()
+                );
             }
         }).start();
     }

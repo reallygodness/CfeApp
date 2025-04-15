@@ -1,11 +1,14 @@
 package com.example.cfeprjct.Activities;
 
+import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.util.Base64;
 import android.util.Log;
 import android.util.Patterns;
 import android.view.View;
@@ -25,40 +28,44 @@ import com.example.cfeprjct.AppDatabase;
 import com.example.cfeprjct.AuthUtils;
 import com.example.cfeprjct.R;
 import com.example.cfeprjct.User;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Source;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ProfileActivity extends AppCompatActivity {
 
     private TextView firstNameTextView, lastNameTextView, emailTextView, phoneNumberTextView;
     private EditText firstNameEditText, lastNameEditText, emailEditText, phoneNumberEditText;
     private Button saveButton, editProfileButton, logoutButton;
-
     private ImageView profileImageView;
-
     private AppDatabase db;
-    private String phoneNumber;  // Хранит изначальный номер телефона пользователя
+    private String phoneNumber;
     private boolean isEditing = false;
+    private byte[] selectedImageBytes = null;
+    private ListenerRegistration userListener;
+    private FirebaseFirestore firestore;
 
-    private TextView fullNameTextView; // Добавляем переменную
-
-    private byte[] selectedImageBytes = null; // Переменная для временного хранения фото
+    // Важно: добавим userId
+    private String userId;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_profile);
 
+
+        firestore = FirebaseFirestore.getInstance();
+
         db = Room.databaseBuilder(getApplicationContext(), AppDatabase.class, "app_database")
                 .allowMainThreadQueries()
                 .build();
 
-        // Инициализация UI компонентов
-        fullNameTextView = findViewById(R.id.fullNameTextView); // Инициализация
         emailTextView = findViewById(R.id.emailTextView);
         phoneNumberTextView = findViewById(R.id.phoneNumberTextView);
         firstNameEditText = findViewById(R.id.firstNameEditText);
@@ -70,129 +77,239 @@ public class ProfileActivity extends AppCompatActivity {
         profileImageView = findViewById(R.id.profileImageView);
         logoutButton = findViewById(R.id.logoutButton);
 
-        // Получаем номер телефона из Intent
-        phoneNumber = getIntent().getStringExtra("phoneNumber");
+        userId = AuthUtils.getLoggedInUserId(this);
 
         updateUI();
 
         profileImageView.setEnabled(false);
-
-        // Добавляем обработчик нажатия на изображение профиля
         profileImageView.setOnClickListener(v -> openGallery());
     }
 
-    public void updateUI() {
-        if (phoneNumber != null) {
+    private void updateUI() {
+        if (userId != null) {
             new Thread(() -> {
-                User user = db.userDAO().getUserByPhoneNumber(phoneNumber);
+                User user = db.userDAO().getUserById(userId);
                 if (user != null) {
-                    runOnUiThread(() -> {
-                        fullNameTextView.setText(user.getFirstName() + " " + user.getLastName()); // Объединяем имя и фамилию
-                        emailTextView.setText("Email: " + user.getEmail());
-                        phoneNumberTextView.setText("Номер телефона: +" + user.getPhoneNumber());
-
-                        // Заполняем EditText данными пользователя
-                        firstNameEditText.setText(user.getFirstName());
-                        lastNameEditText.setText(user.getLastName());
-                        emailEditText.setText(user.getEmail());
-                        phoneNumberEditText.setText(user.getPhoneNumber());
-                        if (user.getProfileImage() != null) {
-                            Bitmap bitmap = BitmapFactory.decodeByteArray(user.getProfileImage(), 0, user.getProfileImage().length);
-                            profileImageView.setImageBitmap(bitmap);
-                        } else {
-                            profileImageView.setImageResource(R.drawable.grayprofile);
-                        }
-                    });
+                    runOnUiThread(() -> updateUIWithUser(user));
                 }
             }).start();
+
+            subscribeToFirestoreUser(userId); // тоже обновим ниже
         }
     }
 
-    public void editProfile(View view) {
-        if (!isEditing) {
-            isEditing = true;
-            fullNameTextView.setVisibility(View.GONE);
-            emailTextView.setVisibility(View.GONE);
-            phoneNumberTextView.setVisibility(View.GONE);
-            editProfileButton.setVisibility(View.GONE);
-            logoutButton.setVisibility(View.GONE);
+    private void updateUIWithUser(User user) {
+        emailTextView.setText("Email: " + user.getEmail());
+        phoneNumberTextView.setText("Номер телефона: +" + user.getPhoneNumber());
 
-            firstNameEditText.setVisibility(View.VISIBLE);
-            lastNameEditText.setVisibility(View.VISIBLE);
-            emailEditText.setVisibility(View.VISIBLE);
-            phoneNumberEditText.setVisibility(View.VISIBLE);
-            saveButton.setVisibility(View.VISIBLE);
+        firstNameEditText.setText(user.getFirstName());
+        lastNameEditText.setText(user.getLastName());
+        emailEditText.setText(user.getEmail());
+        phoneNumberEditText.setText(user.getPhoneNumber());
 
-            profileImageView.setEnabled(true);
+        if (user.getProfileImage() != null) {
+            Bitmap bitmap = BitmapFactory.decodeByteArray(user.getProfileImage(), 0, user.getProfileImage().length);
+            profileImageView.setImageBitmap(bitmap);
+        } else {
+            profileImageView.setImageResource(R.drawable.grayprofile);
         }
     }
 
     public void saveProfileChanges(View view) {
-        String newFirstName = firstNameEditText.getText().toString().trim();
-        String newLastName = lastNameEditText.getText().toString().trim();
-        String newEmail = emailEditText.getText().toString().trim();
+        // Получаем новый номер телефона из поля ввода
         String newPhoneNumber = phoneNumberEditText.getText().toString().trim();
 
-        // Валидация email
-        if (!Patterns.EMAIL_ADDRESS.matcher(newEmail).matches()) {
-            Toast.makeText(this, "Введите корректный email!", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        if (newFirstName.isEmpty() || newLastName.isEmpty() || newEmail.isEmpty() || newPhoneNumber.isEmpty()) {
-            Toast.makeText(this, "Все поля должны быть заполнены!", Toast.LENGTH_SHORT).show();
+        if (newPhoneNumber.isEmpty()) {
+            Toast.makeText(this, "Введите номер телефона!", Toast.LENGTH_SHORT).show();
             return;
         }
 
         new Thread(() -> {
-            User user = db.userDAO().getUserByPhoneNumber(phoneNumber); // Ищем по старому номеру
+            // Получаем пользователя из локальной базы по userId
+            User user = db.userDAO().getUserById(userId);
             if (user != null) {
-                user.setFirstName(newFirstName);
-                user.setLastName(newLastName);
-                user.setEmail(newEmail);
+                // Обновляем данные пользователя
                 user.setPhoneNumber(newPhoneNumber);
-
+                user.setFirstName(firstNameEditText.getText().toString().trim());
+                user.setLastName(lastNameEditText.getText().toString().trim());
+                user.setEmail(emailEditText.getText().toString().trim());
                 if (selectedImageBytes != null) {
                     user.setProfileImage(selectedImageBytes);
-                    selectedImageBytes = null; // Сбрасываем после сохранения
+                    selectedImageBytes = null;
                 }
 
-                Log.d("ProfileActivity", "Фото обновляется: " + (user.getProfileImage() != null));
+                // Сохраняем обновлённого пользователя в Room
+                db.userDAO().insertUser(user);
 
-                db.userDAO().updateUser(user);
+                // Готовим обновлённые данные для Firestore
+                Map<String, Object> updatedUserMap = new HashMap<>();
+                updatedUserMap.put("userId", user.getUserId());
+                updatedUserMap.put("phoneNumber", newPhoneNumber);
+                updatedUserMap.put("firstName", user.getFirstName());
+                updatedUserMap.put("lastName", user.getLastName());
+                updatedUserMap.put("email", user.getEmail());
+                if (user.getProfileImage() != null) {
+                    updatedUserMap.put("profileImage", Base64.encodeToString(user.getProfileImage(), Base64.DEFAULT));
+                }
 
-                // После успешного обновления меняем phoneNumber на новый
-                phoneNumber = newPhoneNumber;
+                // Обновляем документ Firestore по userId (ключ не изменяется)
+                firestore.collection("users").document(user.getUserId())
+                        .set(updatedUserMap)
+                        .addOnSuccessListener(aVoid -> runOnUiThread(() -> {
+                            // Обновляем отображение номера на экране
+                            phoneNumberTextView.setText("Номер телефона: +" + newPhoneNumber);
+                            updateUI();
+                            Toast.makeText(ProfileActivity.this, "Профиль обновлён!", Toast.LENGTH_SHORT).show();
+                            exitEditMode();
 
-                runOnUiThread(() -> {
-                    updateUI();
-                    Toast.makeText(ProfileActivity.this, "Профиль обновлен!", Toast.LENGTH_SHORT).show();
-
-                    isEditing = false;
-                    fullNameTextView.setVisibility(View.VISIBLE);
-                    emailTextView.setVisibility(View.VISIBLE);
-                    phoneNumberTextView.setVisibility(View.VISIBLE);
-                    editProfileButton.setVisibility(View.VISIBLE);
-                    logoutButton.setVisibility(View.VISIBLE);
-
-                    firstNameEditText.setVisibility(View.GONE);
-                    lastNameEditText.setVisibility(View.GONE);
-                    emailEditText.setVisibility(View.GONE);
-                    phoneNumberEditText.setVisibility(View.GONE);
-                    saveButton.setVisibility(View.GONE);
-
-
-                    profileImageView.setEnabled(false);
-                });
+                            // Если номер изменён по сравнению с предыдущим, принудительно разлогинить пользователя,
+                            // затем перезапускаем приложение – таким образом, при следующем запуске загружаются новые данные
+                            if (!newPhoneNumber.equals(phoneNumber)) {
+                                restartAppIfPhoneChanged(true);
+                            } else {
+                                restartAppIfPhoneChanged(false);
+                            }
+                        }))
+                        .addOnFailureListener(e -> Log.e("Firestore", "❌ Ошибка обновления данных в Firestore", e));
             }
         }).start();
     }
 
-    public void logout(View view) {
-        AuthUtils.setLoggedIn(this, false, null);
-        Intent intent = new Intent(this, WelcomeActivity.class);
-        startActivity(intent);
-        finish();
+
+
+    private void updateUserProfile(User user, String newPhoneNumber) {
+        new Thread(() -> {
+            String userId = user.getUserId(); // ✅ используем userId
+
+            // Удалим старого пользователя, если номер изменился
+            if (!phoneNumber.equals(newPhoneNumber)) {
+                db.userDAO().deleteUserById(userId);
+            }
+
+            // Обновим локально
+            db.userDAO().insertUser(user);
+
+
+
+            // Готовим данные для Firestore
+            Map<String, Object> updatedUser = new HashMap<>();
+            updatedUser.put("userId", userId);
+            updatedUser.put("phoneNumber", newPhoneNumber);
+            updatedUser.put("firstName", user.getFirstName());
+            updatedUser.put("lastName", user.getLastName());
+            updatedUser.put("email", user.getEmail());
+
+            if (user.getProfileImage() != null) {
+                updatedUser.put("profileImage", Base64.encodeToString(user.getProfileImage(), Base64.DEFAULT));
+            }
+
+            // Firestore: если номер изменился, удалить старый документ
+            if (!phoneNumber.equals(newPhoneNumber)) {
+                firestore.collection("users").document(userId).delete()
+                        .addOnSuccessListener(aVoid -> {
+                            firestore.collection("users").document(userId)
+                                    .set(updatedUser)
+                                    .addOnSuccessListener(aVoid1 -> runOnUiThread(() -> {
+                                        phoneNumber = newPhoneNumber;
+
+                                        phoneNumberTextView.setText("Номер телефона: +" + newPhoneNumber);
+                                        updateUI();
+                                        Toast.makeText(ProfileActivity.this, "Профиль обновлён!", Toast.LENGTH_SHORT).show();
+                                        exitEditMode();
+                                    }))
+                                    .addOnFailureListener(e -> Log.e("Firestore", "❌ Ошибка создания нового документа", e));
+                        })
+                        .addOnFailureListener(e -> Log.e("Firestore", "❌ Не удалось удалить старый документ", e));
+            } else {
+                // Просто обновим текущий документ
+                firestore.collection("users").document(userId)
+                        .set(updatedUser)
+                        .addOnSuccessListener(aVoid -> runOnUiThread(() -> {
+                            phoneNumberTextView.setText("Номер телефона: +" + newPhoneNumber);
+                            updateUI();
+                            Toast.makeText(ProfileActivity.this, "Профиль обновлён!", Toast.LENGTH_SHORT).show();
+                            exitEditMode();
+                        }))
+                        .addOnFailureListener(e -> Log.e("Firestore", "❌ Ошибка обновления", e));
+            }
+
+        }).start();
+    }
+
+    private void restartAppIfPhoneChanged(boolean forceLogout) {
+        runOnUiThread(() -> {
+            if (forceLogout) {
+                // Принудительный выход: очищаем сохранённые данные авторизации
+                AuthUtils.clearLogin(ProfileActivity.this);
+            }
+            // Перезапускаем приложение, переходя на экран WelcomeActivity
+            Intent intent = new Intent(ProfileActivity.this, WelcomeActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+            startActivity(intent);
+            finish();
+        });
+    }
+
+
+
+
+    private void subscribeToFirestoreUser(String id) {
+        if (id == null) return;
+
+        if (userListener != null) {
+            userListener.remove();
+        }
+
+        userListener = firestore.collection("users").document(id)
+                .addSnapshotListener((documentSnapshot, error) -> {
+                    if (error != null) {
+                        Log.e("Firestore", "❌ Ошибка при получении данных", error);
+                        return;
+                    }
+
+                    if (documentSnapshot != null && documentSnapshot.exists()) {
+                        String firstName = documentSnapshot.getString("firstName");
+                        String lastName = documentSnapshot.getString("lastName");
+                        String email = documentSnapshot.getString("email");
+                        String phoneNumber = documentSnapshot.getString("phoneNumber");
+                        String profileImageBase64 = documentSnapshot.getString("profileImage");
+
+                        User firestoreUser = new User(userId, firstName, lastName, email, phoneNumber);
+                        if (profileImageBase64 != null) {
+                            firestoreUser.setProfileImage(Base64.decode(profileImageBase64, Base64.DEFAULT));
+                        }
+
+                        updateUIWithUser(firestoreUser);
+                    } else {
+                        new Thread(() -> {
+                            db.userDAO().deleteUserById(id);
+                            runOnUiThread(() -> {
+                                Toast.makeText(ProfileActivity.this, "Профиль удалён. Повторный вход необходим.", Toast.LENGTH_LONG).show();
+                                Intent intent = new Intent(ProfileActivity.this, LoginActivity.class);
+                                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                                startActivity(intent);
+                                finish();
+                            });
+                        }).start();
+                    }
+                });
+    }
+
+
+
+
+    private void exitEditMode() {
+        isEditing = false;
+        editProfileButton.setVisibility(View.VISIBLE);
+        logoutButton.setVisibility(View.VISIBLE);
+
+        firstNameEditText.setVisibility(View.GONE);
+        lastNameEditText.setVisibility(View.GONE);
+        emailEditText.setVisibility(View.GONE);
+        phoneNumberEditText.setVisibility(View.GONE);
+        saveButton.setVisibility(View.GONE);
+
+        profileImageView.setEnabled(false);
     }
 
     private void openGallery() {
@@ -202,13 +319,10 @@ public class ProfileActivity extends AppCompatActivity {
 
     private final androidx.activity.result.ActivityResultLauncher<Intent> galleryLauncher =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
-                    new ActivityResultCallback<ActivityResult>() {
-                        @Override
-                        public void onActivityResult(ActivityResult result) {
-                            if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                                Uri imageUri = result.getData().getData();
-                                saveImageToDatabase(imageUri);
-                            }
+                    result -> {
+                        if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                            Uri imageUri = result.getData().getData();
+                            saveImageToDatabase(imageUri);
                         }
                     });
 
@@ -218,23 +332,11 @@ public class ProfileActivity extends AppCompatActivity {
 
             Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
             bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
-            selectedImageBytes = outputStream.toByteArray(); // Сохраняем фото в переменную
+            selectedImageBytes = outputStream.toByteArray();
 
-            runOnUiThread(() -> {
-                Toast.makeText(this, "Фото загружено, нажмите 'Сохранить изменения'", Toast.LENGTH_SHORT).show();
-                profileImageView.setImageBitmap(bitmap);
-            });
-
+            profileImageView.setImageBitmap(bitmap);
         } catch (IOException e) {
             e.printStackTrace();
-            Toast.makeText(this, "Ошибка при загрузке изображения", Toast.LENGTH_SHORT).show();
         }
     }
-
-
-
-
-
-
-
 }

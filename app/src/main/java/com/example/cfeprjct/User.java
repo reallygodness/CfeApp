@@ -1,47 +1,47 @@
 package com.example.cfeprjct;
 
+import androidx.annotation.NonNull;
 import androidx.room.Entity;
+import androidx.room.Ignore;
 import androidx.room.PrimaryKey;
 
 @Entity(tableName = "users")
 public class User {
 
-    @PrimaryKey(autoGenerate = true)
-    private int id;
+    @PrimaryKey
+    @NonNull
+    private String userId;  // ключевое поле, не допускающее null
 
     private String firstName;
     private String lastName;
     private String email;
     private String phoneNumber;
-
     private String resetCode;
     private String password;  // для хранения пароля
-
-
-
     private byte[] profileImage;
 
-    // Конструкторы, геттеры и сеттеры
-
-    public User(String firstName, String lastName, String email, String phoneNumber, String password) {
+    // Основной конструктор, который будет использоваться Room
+    public User(@NonNull String userId, String firstName, String lastName, String email, String phoneNumber) {
+        this.userId = userId;
         this.firstName = firstName;
         this.lastName = lastName;
         this.email = email;
         this.phoneNumber = phoneNumber;
-        this.password = password;
     }
 
-    // Конструктор без параметров (для Room)
+    // Конструктор без параметров, помечаем @Ignore, чтобы Room его не выбирал
+    @Ignore
     public User() {}
 
     // Геттеры и сеттеры
 
-    public int getId() {
-        return id;
+    @NonNull
+    public String getUserId() {
+        return userId;
     }
 
-    public void setId(int id) {
-        this.id = id;
+    public void setUserId(@NonNull String userId) {
+        this.userId = userId;
     }
 
     public String getFirstName() {
@@ -95,8 +95,8 @@ public class User {
     public byte[] getProfileImage() {
         return profileImage;
     }
+
     public void setProfileImage(byte[] profileImage) {
         this.profileImage = profileImage;
     }
-
 }

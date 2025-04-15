@@ -2,16 +2,11 @@ package com.example.cfeprjct.Activities;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
-import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 
 import com.example.cfeprjct.AppDatabase;
 import com.example.cfeprjct.R;
@@ -29,19 +24,18 @@ public class VerifyCodeActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_verify_code);
+
+        // Получаем ссылку на локальную базу данных
         database = AppDatabase.getInstance(this);
 
         codeEditText = findViewById(R.id.codeEditText);
         verifyButton = findViewById(R.id.verifyButton);
 
-        email = getIntent().getStringExtra("email"); // Получаем email из Intent
+        // Получаем email из Intent
+        email = getIntent().getStringExtra("email");
 
-        verifyButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                verifyCode();
-            }
-        });
+        // Обработка клика с использованием лямбды
+        verifyButton.setOnClickListener(v -> verifyCode());
     }
 
     private void verifyCode() {
@@ -55,11 +49,13 @@ public class VerifyCodeActivity extends AppCompatActivity {
         // Выполняем проверку в фоновом потоке
         new Thread(() -> {
             UserDAO userDAO = AppDatabase.getInstance(getApplicationContext()).userDAO();
+            // Метод verifyResetCode(email, enteredCode) должен вернуть пользователя, если код верный
             User user = userDAO.verifyResetCode(email, enteredCode);
 
             runOnUiThread(() -> {
                 if (user != null) {
                     Toast.makeText(VerifyCodeActivity.this, "Код подтвержден!", Toast.LENGTH_SHORT).show();
+                    // Передаем email в ResetPasswordActivity (проверь правильность имени класса)
                     Intent intent = new Intent(VerifyCodeActivity.this, ResetPasswordAcitvity.class);
                     intent.putExtra("email", email);
                     startActivity(intent);
@@ -70,5 +66,4 @@ public class VerifyCodeActivity extends AppCompatActivity {
             });
         }).start();
     }
-
 }
