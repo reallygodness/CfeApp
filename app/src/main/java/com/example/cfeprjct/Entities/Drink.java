@@ -1,24 +1,63 @@
 package com.example.cfeprjct.Entities;
 
+import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
 @Entity(tableName = "drinks")
 public class Drink {
     @PrimaryKey(autoGenerate = true)
+    @ColumnInfo(name = "drinkId")
     private int drinkId;
 
-    private String name;        // Название
-    private String description; // Описание
-    private int volumeId;       // Объем_id
+    @ColumnInfo(name = "name")
+    private String name;
 
-    // Геттеры и сеттеры
-    public int getDrinkId() { return drinkId; }
-    public void setDrinkId(int drinkId) { this.drinkId = drinkId; }
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-    public String getDescription() { return description; }
-    public void setDescription(String description) { this.description = description; }
-    public int getVolumeId() { return volumeId; }
-    public void setVolumeId(int volumeId) { this.volumeId = volumeId; }
+    @ColumnInfo(name = "description")
+    private String description;
+
+    // Вот это поле не хватало
+    @ColumnInfo(name = "volumeId")
+    private int volumeId;
+
+    // Геттеры
+    public int getDrinkId() {
+        return drinkId;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    // добавляем поле
+    private String imageUrl;
+
+    public int getVolumeId() {
+        return volumeId;
+    }
+
+    // Сеттеры
+    public void setDrinkId(int drinkId) {
+        this.drinkId = drinkId;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public void setVolumeId(int volumeId) {
+        this.volumeId = volumeId;
+    }
+
+    // новый геттер/сеттер для imageUrl
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
 }

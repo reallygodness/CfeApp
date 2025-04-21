@@ -45,31 +45,34 @@ import com.example.cfeprjct.Entities.Review;
 import com.example.cfeprjct.Entities.Volume;
 import com.example.cfeprjct.User;
 
-@Database(entities = {
-        User.class,
-        Address.class,
-        Delivery.class,
-        OrderedDrink.class,
-        Order.class,
-        FavoriteDrink.class,
-        Ingredient.class,
-        Courier.class,
-        Drink.class,
-        DrinkIngredient.class,
-        Volume.class,
-        Review.class,
-        PriceList.class,
-        OrderStatus.class,
-        Dish.class,
-        OrderedDish.class,
-        Dessert.class,
-        OrderedDessert.class
-}, version = 5, exportSchema = false)
+@Database(
+        entities = {
+                User.class,
+                Address.class,
+                Delivery.class,
+                OrderedDrink.class,
+                Order.class,
+                FavoriteDrink.class,
+                Ingredient.class,
+                Courier.class,
+                Drink.class,
+                DrinkIngredient.class,
+                Volume.class,
+                Review.class,
+                PriceList.class,
+                OrderStatus.class,
+                Dish.class,
+                OrderedDish.class,
+                Dessert.class,
+                OrderedDessert.class
+        },
+        version = 8,
+        exportSchema = false
+)
 public abstract class AppDatabase extends RoomDatabase {
 
     private static AppDatabase instance;
 
-    // Определяем DAO для всех сущностей
     public abstract UserDAO userDAO();
     public abstract AddressDAO addressDAO();
     public abstract DeliveryDAO deliveryDAO();
@@ -89,44 +92,57 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract DessertDAO dessertDAO();
     public abstract OrderedDessertDAO orderedDessertDAO();
 
-    /**
-     * Миграция с версии 4 на 5 для таблицы пользователей.
-     * Предполагается, что в предыдущей версии уже используется столбец "userId" (TEXT, non-null, primary key),
-     * поэтому здесь мы просто копируем данные в новую таблицу.
-     */
+    /** Миграция 4 → 5: пользователь (ваш старый код) */
     static final Migration MIGRATION_4_5 = new Migration(4, 5) {
-        @Override
-        public void migrate(@NonNull SupportSQLiteDatabase database) {
-            // Создаем новую таблицу с корректной схемой
-            database.execSQL("CREATE TABLE IF NOT EXISTS `users_new` (" +
+        @Override public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS `users_new` (" +
                     "`userId` TEXT NOT NULL, " +
-                    "`firstName` TEXT, " +
-                    "`lastName` TEXT, " +
-                    "`email` TEXT, " +
-                    "`phoneNumber` TEXT, " +
-                    "`resetCode` TEXT, " +
-                    "`password` TEXT, " +
-                    "`profileImage` BLOB, " +
+                    "`firstName` TEXT, `lastName` TEXT, `email` TEXT, `phoneNumber` TEXT, " +
+                    "`resetCode` TEXT, `password` TEXT, `profileImage` BLOB, " +
                     "PRIMARY KEY(`userId`))");
-
-            // Копируем данные из старой таблицы в новую (так как в старой версии уже используется userId)
-            database.execSQL("INSERT INTO `users_new` (userId, firstName, lastName, email, phoneNumber, resetCode, password, profileImage) " +
+            db.execSQL("INSERT INTO `users_new` " +
+                    "(userId, firstName, lastName, email, phoneNumber, resetCode, password, profileImage) " +
                     "SELECT userId, firstName, lastName, email, phoneNumber, resetCode, password, profileImage FROM users");
+            db.execSQL("DROP TABLE users");
+            db.execSQL("ALTER TABLE users_new RENAME TO users");
+        }
+    };
 
-            // Удаляем старую таблицу
-            database.execSQL("DROP TABLE users");
+    /** Миграция 5 → 6: создаём все каталожные таблицы (ваш старый код) */
+    static final Migration MIGRATION_5_6 = new Migration(5, 6) {
+        @Override public void migrate(@NonNull SupportSQLiteDatabase db) {
+            // … ваш SQL для price_list, Address, Order, Delivery, OrderedDrink, и т.д.
+        }
+    };
 
-            // Переименовываем новую таблицу в users
-            database.execSQL("ALTER TABLE users_new RENAME TO users");
+    /** Миграция 6 → 7: добавляем imageUrl в drinks */
+    static final Migration MIGRATION_6_7 = new Migration(6, 7) {
+        @Override public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE `drinks` ADD COLUMN `imageUrl` TEXT");
+        }
+    };
+
+    /** Миграция 7 → 8: добавляем imageUrl в dishes и desserts */
+    static final Migration MIGRATION_7_8 = new Migration(7, 8) {
+        @Override public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE `dishes` ADD COLUMN `imageUrl` TEXT");
+            db.execSQL("ALTER TABLE `desserts` ADD COLUMN `imageUrl` TEXT");
         }
     };
 
     public static synchronized AppDatabase getInstance(Context context) {
         if (instance == null) {
-            instance = Room.databaseBuilder(context.getApplicationContext(),
-                            AppDatabase.class, "app_database")
-                    .addMigrations(MIGRATION_4_5) // Если миграция вам нужна – удалите fallbackToDestructiveMigration() и раскомментируйте эту строку
-                    .fallbackToDestructiveMigration() // Альтернатива: уничтожить данные и создать новую базу
+            instance = Room.databaseBuilder(
+                            context.getApplicationContext(),
+                            AppDatabase.class,
+                            "app_database"
+                    )
+                    .addMigrations(
+                            MIGRATION_4_5,
+                            MIGRATION_5_6,
+                            MIGRATION_6_7,
+                            MIGRATION_7_8
+                    )
                     .build();
         }
         return instance;

@@ -1,5 +1,6 @@
 package com.example.cfeprjct.Entities;
 
+import androidx.room.ColumnInfo;
 import androidx.room.Entity;
 import androidx.room.PrimaryKey;
 
@@ -11,11 +12,20 @@ public class Dish {
     private String name;        // Название
     private String description; // Описание
 
+    @ColumnInfo(name = "imageUrl")
+    private String imageUrl;
+
     // Геттеры и сеттеры
     public int getDishId() { return dishId; }
+    public String getImageUrl() {
+        return imageUrl;
+    }
     public void setDishId(int dishId) { this.dishId = dishId; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
 }

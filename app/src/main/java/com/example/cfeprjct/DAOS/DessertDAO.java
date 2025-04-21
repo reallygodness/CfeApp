@@ -5,6 +5,7 @@ import androidx.room.Delete;
 import androidx.room.Insert;
 import androidx.room.Query;
 import androidx.room.Update;
+import androidx.room.OnConflictStrategy;
 
 import com.example.cfeprjct.Entities.Dessert;
 
@@ -27,4 +28,10 @@ public interface DessertDAO {
 
     @Query("SELECT * FROM desserts")
     List<Dessert> getAllDesserts();
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    void insertAll(List<Dessert> desserts);
+
+    @Query("SELECT * FROM desserts WHERE name LIKE :query")
+    List<Dessert> searchDessertsByName(String query);
 }

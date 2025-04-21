@@ -7,7 +7,11 @@ import android.util.Base64;
 import android.util.Log;
 
 import androidx.room.Room;
+import androidx.work.OneTimeWorkRequest;
+import androidx.work.WorkManager;
 
+import com.example.cfeprjct.Sync.CatalogSync;
+import com.example.cfeprjct.Sync.SyncUserWorker;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.io.ByteArrayOutputStream;
@@ -22,64 +26,11 @@ public class MyApp extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-
-        // Инициализируем Firestore
-        firestore = FirebaseFirestore.getInstance();
-
-        // Инициализируем локальную базу данных (Room)
-        localDb = Room.databaseBuilder(getApplicationContext(), AppDatabase.class, "app_database")
-                .allowMainThreadQueries()
+        CatalogSync sync = new CatalogSync(this);
+        // Просто ставим в очередь однократную задачу синхронизации:
+        OneTimeWorkRequest syncReq = new OneTimeWorkRequest.Builder(SyncUserWorker.class)
                 .build();
-
-        syncUsersToFirestore(); // Запускаем синхронизацию данных при старте приложения
+        WorkManager.getInstance(this).enqueue(syncReq);
     }
 
-    private void syncUsersToFirestore() {
-        new Thread(() -> {
-            // Получаем локальную базу и всех пользователей
-            AppDatabase db = AppDatabase.getInstance(getApplicationContext());
-            List<User> users = db.userDAO().getAllUsers();
-
-            FirebaseFirestore firestore = FirebaseFirestore.getInstance();
-
-            for (User user : users) {
-                // Проверяем, что userId корректно задан
-                if (user == null || user.getUserId() == null || user.getUserId().isEmpty()) {
-                    Log.w("Firestore", "❗ Пропущен пользователь с пустым userId.");
-                    continue;
-                }
-
-                // Готовим карту данных для Firestore
-                Map<String, Object> userMap = new HashMap<>();
-                userMap.put("userId", user.getUserId());
-                userMap.put("firstName", user.getFirstName());
-                userMap.put("lastName", user.getLastName());
-                userMap.put("email", user.getEmail());
-                userMap.put("phoneNumber", user.getPhoneNumber());
-
-                // Добавляем пароль, если он установлен (хэшированная строка)
-                if (user.getPassword() != null) {
-                    userMap.put("password", user.getPassword());
-                }
-                // Если есть изображение профиля, кодируем в Base64
-                if (user.getProfileImage() != null) {
-                    userMap.put("profileImage", Base64.encodeToString(user.getProfileImage(), Base64.DEFAULT));
-                }
-
-                firestore.collection("users").document(user.getUserId())
-                        .set(userMap)
-                        .addOnSuccessListener(aVoid -> Log.d("Firestore", "✅ Пользователь синхронизирован: " + user.getUserId()))
-                        .addOnFailureListener(e -> Log.e("Firestore", "❌ Ошибка синхронизации", e));
-            }
-        }).start();
-    }
-
-    // Вспомогательный метод для кодирования изображения в Base64 (если потребуется)
-    private String encodeToBase64(byte[] imageBytes) {
-        Bitmap bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.length);
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.PNG, 100, baos);
-        byte[] byteArray = baos.toByteArray();
-        return Base64.encodeToString(byteArray, Base64.DEFAULT);
-    }
 }
