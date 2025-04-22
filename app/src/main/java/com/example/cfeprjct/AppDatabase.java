@@ -66,7 +66,7 @@ import com.example.cfeprjct.User;
                 Dessert.class,
                 OrderedDessert.class
         },
-        version = 8,
+        version = 9,
         exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -130,6 +130,28 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
+    static final Migration MIGRATION_8_9 = new Migration(8, 9) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            // Переименовываем старую таблицу
+            db.execSQL("ALTER TABLE volumes RENAME TO volumes_old");
+
+            // Создаем новую таблицу volumes с нужными полями
+            db.execSQL("CREATE TABLE IF NOT EXISTS volumes (" +
+                    "volumeId INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "size TEXT, " +
+                    "ml INTEGER NOT NULL)");
+
+            // Переносим данные из старой таблицы
+            db.execSQL("INSERT INTO volumes (volumeId, size, ml) " +
+                    "SELECT volumeId, volume, 0 FROM volumes_old");
+
+            // Удаляем временную таблицу
+            db.execSQL("DROP TABLE volumes_old");
+        }
+    };
+
+
     public static synchronized AppDatabase getInstance(Context context) {
         if (instance == null) {
             instance = Room.databaseBuilder(
@@ -141,7 +163,8 @@ public abstract class AppDatabase extends RoomDatabase {
                             MIGRATION_4_5,
                             MIGRATION_5_6,
                             MIGRATION_6_7,
-                            MIGRATION_7_8
+                            MIGRATION_7_8,
+                            MIGRATION_8_9
                     )
                     .build();
         }

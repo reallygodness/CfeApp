@@ -1,16 +1,19 @@
 package com.example.cfeprjct.Adapters;
 
+import android.content.Context;
+import android.content.Intent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
+import com.example.cfeprjct.Activities.ProductDetailActivity;
 import com.example.cfeprjct.R;
 
 import java.util.ArrayList;
@@ -25,31 +28,64 @@ public class CatalogAdapter extends RecyclerView.Adapter<CatalogAdapter.ViewHold
         notifyDataSetChanged();
     }
 
-    @NonNull
-    @Override
-    public CatalogAdapter.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+    @NonNull @Override
+    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View v = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_catalog_cart, parent, false);
         return new ViewHolder(v);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull CatalogAdapter.ViewHolder holder, int position) {
+    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         CatalogItem item = items.get(position);
+
+        // Заголовок и описание
         holder.titleTextView.setText(item.getTitle());
         holder.descriptionTextView.setText(item.getDescription());
+
+        // Цена (int)
         holder.priceTextView.setText(item.getPrice() + " ₽");
 
-        // Загружаем картинку по URL (Glide):
+        // Картинка через Glide, centerCrop чтобы хорошо вписывалось
         String url = item.getImageUrl();
         if (url != null && !url.isEmpty()) {
             Glide.with(holder.imageView.getContext())
                     .load(url)
                     .placeholder(R.drawable.ic_placeholder)
+                    .centerCrop()
                     .into(holder.imageView);
         } else {
             holder.imageView.setImageResource(R.drawable.ic_placeholder);
         }
+        // Звёздочки рейтинга
+        holder.ratingContainer.removeAllViews();
+        // 1) получаем рейтинг и защищаемся от null
+        Float ratingObj = item.getRating();
+        int fullStars = (ratingObj != null) ? ratingObj.intValue() : 0;
+        // 2) добавляем звёздочки
+        for (int i = 0; i < fullStars; i++) {
+            ImageView star = new ImageView(holder.ratingContainer.getContext());
+            star.setImageResource(R.drawable.ic_star);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+            lp.setMargins(2, 0, 2, 0);
+            star.setLayoutParams(lp);
+            holder.ratingContainer.addView(star);
+        }
+
+        holder.itemView.setOnClickListener(v -> {
+            Context ctx = v.getContext();
+            Intent intent = new Intent(ctx, ProductDetailActivity.class);
+            intent.putExtra(ProductDetailActivity.EXTRA_ITEM, items.get(position));
+            ctx.startActivity(intent);
+        });
+
+
+        // Кнопка “+”
+        holder.addButton.setOnClickListener(v -> {
+            // TODO: добавить логику добавления в корзину
+        });
     }
 
     @Override
@@ -58,9 +94,9 @@ public class CatalogAdapter extends RecyclerView.Adapter<CatalogAdapter.ViewHold
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView titleTextView, descriptionTextView, priceTextView;
-        ImageView imageView;
-        Button addButton;
+        TextView    titleTextView, descriptionTextView, priceTextView;
+        ImageView   imageView, addButton;
+        LinearLayout ratingContainer;
 
         ViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -69,7 +105,7 @@ public class CatalogAdapter extends RecyclerView.Adapter<CatalogAdapter.ViewHold
             priceTextView       = itemView.findViewById(R.id.itemPriceTextView);
             imageView           = itemView.findViewById(R.id.itemImageView);
             addButton           = itemView.findViewById(R.id.addButton);
+            ratingContainer     = itemView.findViewById(R.id.ratingContainer);
         }
     }
 }
-

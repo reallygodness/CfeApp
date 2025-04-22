@@ -1,43 +1,74 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:layout_marginTop="20dp"
-    android:padding="10dp">
+    android:layout_marginTop="25dp"
+    android:padding="0dp">
 
-    <!-- Верхняя панель: адрес пользователя и кнопка изменения -->
     <LinearLayout
+        android:id="@+id/header_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:padding="8dp">
+        android:orientation="vertical"
+        android:background="@color/black"
+        android:padding="16dp">
+
+        <!-- Мелкий заголовок -->
         <TextView
-            android:id="@+id/addressTextView"
-            android:layout_width="0dp"
-            android:layout_weight="1"
-            android:layout_height="wrap_content"
-            android:text="Москва, ул. Ленина 10"
-            android:textSize="16sp"
-            android:textStyle="bold" />
-        <ImageView
-            android:id="@+id/editAddressButton"
+            android:id="@+id/addressLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:src="@drawable/ic_edit" /> <!-- Здесь ваша иконка редактирования -->
-    </LinearLayout>
+            android:text="Адрес"
+            android:textSize="14sp"
+            android:textColor="@color/white_60" />
 
-    <!-- Поисковая строка -->
-    <EditText
-        android:id="@+id/searchEditText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Найти товар..."
-        android:padding="12dp"
-        android:background="@drawable/search_edittext_bg"
-        android:drawableStart="@drawable/ic_search" />
+        <!-- Собственно адрес + кнопка редактирования -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="4dp">
+
+            <TextView
+                android:id="@+id/addressTextView"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="Москва, Новослободская 23"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="@color/white" />
+
+            <ImageView
+                android:id="@+id/editAddressButton"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@drawable/ic_edit"
+                app:tint="@color/white" />
+        </LinearLayout>
+
+        <!-- Поисковая строка -->
+        <EditText
+            android:id="@+id/searchEditText"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:layout_marginTop="16dp"
+            android:background="@drawable/bg_search_field"
+            android:drawableStart="@drawable/ic_search"
+            android:drawablePadding="8dp"
+            android:hint="Поиск"
+            android:textColorHint="@color/gray"
+            android:inputType="text"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:textColor="@color/white"
+            android:textSize="16sp" />
+
+    </LinearLayout>
 
     <!-- Табы категорий -->
     <LinearLayout
@@ -45,22 +76,26 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:gravity="center"
+        android:gravity="center_horizontal"
         android:paddingTop="8dp"
+        android:layout_marginTop="10dp"
         android:paddingBottom="8dp">
         <Button
             android:id="@+id/drinkTabButton"
+            android:background="@drawable/button_rounded"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Кофе" />
         <Button
             android:id="@+id/dishTabButton"
+            android:background="@drawable/button_rounded"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
             android:text="Блюда" />
         <Button
             android:id="@+id/dessertTabButton"
+            android:background="@drawable/button_rounded"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
@@ -72,6 +107,6 @@
         android:id="@+id/catalogRecyclerView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1" />
-
+        android:layout_weight="1"
+        android:contentDescription="@string/catalog_list_description"/>
 </LinearLayout>

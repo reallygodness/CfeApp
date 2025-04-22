@@ -8,6 +8,7 @@ import com.example.cfeprjct.Entities.Dessert;
 import com.example.cfeprjct.Entities.Dish;
 import com.example.cfeprjct.Entities.Drink;
 import com.example.cfeprjct.Entities.PriceList;
+import com.example.cfeprjct.Entities.Volume;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
@@ -180,6 +181,36 @@ public class CatalogSync {
                 })
                 .addOnFailureListener(e -> {
                     Log.e("CatalogSync", "Ошибка загрузки price_list", e);
+                    cb.onComplete();
+                });
+    }
+
+    /** Шаг N: синхронизируем объёмы из Firestore → Room.volumes */
+    public void syncVolumes(Callback cb) {
+        firestore.collection("volumes")
+                .get()
+                .addOnSuccessListener(qs -> {
+                    List<Volume> list = new ArrayList<>();
+                    for (DocumentSnapshot doc : qs) {
+                        Volume v = new Volume();
+                        // допустим, в Firestore у вас поля: volumeId (int), size (String), ml (int)
+                        Long vid = doc.getLong("volumeId");
+                        Long ml  = doc.getLong("ml");
+                        String size = doc.getString("size");
+                        if (vid == null || ml == null || size == null) continue;
+                        v.setVolumeId(vid.intValue());
+                        v.setMl(ml.intValue());
+                        v.setSize(size);
+                        list.add(v);
+                    }
+                    new Thread(() -> {
+                        db.volumeDAO().insertAll(list);
+                        Log.d("CatalogSync","Room: записано объёмов = "+list.size());
+                        cb.onComplete();
+                    }).start();
+                })
+                .addOnFailureListener(e -> {
+                    Log.e("CatalogSync","Ошибка при загрузке volumes", e);
                     cb.onComplete();
                 });
     }
