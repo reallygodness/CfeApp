@@ -1,5 +1,6 @@
 package com.example.cfeprjct.Activities;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ImageView;
@@ -26,6 +27,10 @@ public class ProductDetailActivity extends AppCompatActivity {
     public static final String EXTRA_ITEM = "extra_catalog_item";
 
     private AppDatabase db;
+    private float basePrice;
+    private TextView tvPrice;
+    private MaterialButtonToggleGroup sizes;
+    private int mlS, mlM, mlL;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,22 +53,6 @@ public class ProductDetailActivity extends AppCompatActivity {
             return;
         }
 
-        // инициализируем Room и DAO
-        db = AppDatabase.getInstance(this);
-        List<Volume> vols = db.volumeDAO().getAllVolumes();
-
-        // находим ml каждого объёма
-        int mlS = 0, mlM = 0, mlL = 0;
-        for (Volume v : vols) {
-            switch (v.getSize()) {
-                case "S": mlS = v.getMl(); break;
-                case "M": mlM = v.getMl(); break;
-                case "L": mlL = v.getMl(); break;
-            }
-        }
-        // базовая цена — это цена для S
-        final float basePrice = item.getPrice();
-
         // toolbar + кнопка «назад»
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -71,18 +60,18 @@ public class ProductDetailActivity extends AppCompatActivity {
         toolbar.setNavigationOnClickListener(v -> onBackPressed());
 
         // view-шки
-        ImageView iv          = findViewById(R.id.detailImage);
+        ImageView iv    = findViewById(R.id.detailImage);
         TextView tvTitle      = findViewById(R.id.detailTitle);
         TextView tvRating     = findViewById(R.id.detailRating);
         TextView tvDesc       = findViewById(R.id.detailDescription);
-        MaterialButtonToggleGroup sizes = findViewById(R.id.sizeToggle);
+        sizes                 = findViewById(R.id.sizeToggle);
         MaterialButton btnS   = findViewById(R.id.btnSizeS);
         MaterialButton btnM   = findViewById(R.id.btnSizeM);
         MaterialButton btnL   = findViewById(R.id.btnSizeL);
-        TextView tvPrice      = findViewById(R.id.detailPrice);
+        tvPrice              = findViewById(R.id.detailPrice);
         MaterialButton btnAdd = findViewById(R.id.btnAddToCart);
 
-        // заполняем общие поля
+        // общие поля
         tvTitle.setText(item.getTitle());
         tvRating.setText(String.valueOf(item.getRating()));
         tvDesc.setText(item.getDescription());
@@ -92,34 +81,60 @@ public class ProductDetailActivity extends AppCompatActivity {
                 .centerCrop()
                 .into(iv);
 
-        // показываем цену для S по умолчанию
-        tvPrice.setText(String.format("%d ₽", (int)basePrice));
+        // базовая цена — это цена для S
+        basePrice = item.getPrice();
+        tvPrice.setText(String.format("%d ₽", (int) basePrice));
+
+        // инициализируем Room (без allowMainThreadQueries!)
+        db = AppDatabase.getInstance(this);
 
         // если это кофе — отображаем выбор размера
         if ("drink".equals(item.getType())) {
             sizes.setVisibility(View.VISIBLE);
-            // по умолчанию S
-            sizes.check(R.id.btnSizeS);
 
-            int finalMlS = mlS;
-            int finalMlM = mlM;
-            int finalMlL = mlL;
-            sizes.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
-                if (!isChecked) return;
-                float newPrice = basePrice;
-                if (checkedId == R.id.btnSizeM && finalMlS != 0) {
-                    newPrice = basePrice * finalMlM / (float) finalMlS;
-                } else if (checkedId == R.id.btnSizeL && finalMlS != 0) {
-                    newPrice = basePrice * finalMlL / (float) finalMlS;
+            // загружаем объёмы в фоне
+            new Thread(() -> {
+                List<Volume> vols = db.volumeDAO().getAllVolumes();
+                int s = 0, m = 0, l = 0;
+                for (Volume v : vols) {
+                    switch (v.getSize()) {
+                        case "S": s = v.getMl(); break;
+                        case "M": m = v.getMl(); break;
+                        case "L": l = v.getMl(); break;
+                    }
                 }
-                tvPrice.setText(String.format("%d ₽", (int)newPrice));
-            });
+                mlS = s; mlM = m; mlL = l;
+
+                // после загрузки — конфигурируем переключатель на UI‑потоке
+                runOnUiThread(this::configureSizeToggle);
+            }).start();
+
         } else {
             sizes.setVisibility(View.GONE);
         }
 
         btnAdd.setOnClickListener(v -> {
             // TODO: добавить в корзину
+        });
+    }
+
+    /**
+     * Вызывается на UI‑потоке после того, как mlS, mlM и mlL инициализированы в фоне.
+     */
+    private void configureSizeToggle() {
+        // по умолчанию S
+        sizes.check(R.id.btnSizeS);
+
+        sizes.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
+            if (!isChecked || mlS == 0) return;
+
+            float newPrice = basePrice;
+            if (checkedId == R.id.btnSizeM && mlM != 0) {
+                newPrice = basePrice * mlM / (float) mlS;
+            } else if (checkedId == R.id.btnSizeL && mlL != 0) {
+                newPrice = basePrice * mlL / (float) mlS;
+            }
+            tvPrice.setText(String.format("%d ₽", (int)newPrice));
         });
     }
 }
