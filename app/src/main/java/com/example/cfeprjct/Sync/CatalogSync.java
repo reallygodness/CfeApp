@@ -30,6 +30,23 @@ public class CatalogSync {
         firestore = FirebaseFirestore.getInstance();
     }
 
+    /**
+     * Главный метод синхронизации: сначала объёмы, потом напитки+цены, затем блюда и десерты.
+     */
+    public void syncCatalog(Callback cb) {
+        // 1) syncVolumes
+        syncVolumes(() ->
+                // 2) syncDrinks (внутри уже вызывает syncPrices)
+                syncDrinks(() ->
+                        // 3) syncDishes
+                        syncDishes(() ->
+                                // 4) syncDesserts и финальный колбэк
+                                syncDesserts(cb)
+                        )
+                )
+        );
+    }
+
     /** 1) Синхронизируем напитки, а затем цены */
     public void syncDrinks(Callback cb) {
         firestore.collection("drinks")
@@ -59,13 +76,13 @@ public class CatalogSync {
                     }
                     new Thread(() -> {
                         db.drinkDAO().insertAll(drinks);
-                        // только после вставки напитков — синхронизируем цены
+                        // после напитков синхронизируем цены
                         syncPrices(cb);
                     }).start();
                 })
                 .addOnFailureListener(e -> {
                     Log.e("CatalogSync", "Ошибка загрузки drinks", e);
-                    // даже если напитки не прилетели — пробуем обновить цены и вернуть колбэк
+                    // даже при ошибке — пытаемся синхронизировать цены
                     syncPrices(cb);
                 });
     }
@@ -132,11 +149,7 @@ public class CatalogSync {
                 });
     }
 
-    /**
-     * 4) Синхронизируем прайс-лист.
-     * Только вызывается из syncDrinks, чтобы гарантировать, что
-     * и напитки, и цены прилетели до того, как UI перерисует список.
-     */
+    /** 4) Синхронизируем прайс-лист (вызывается из syncDrinks) */
     private void syncPrices(Callback cb) {
         firestore.collection("price_list")
                 .get()
@@ -144,7 +157,6 @@ public class CatalogSync {
                     List<PriceList> prices = new ArrayList<>();
                     for (DocumentSnapshot doc : qs) {
                         PriceList p = new PriceList();
-
                         Long itemIdLong = doc.getLong("itemId");
                         String itemType = doc.getString("itemType");
                         Double priceD   = doc.getDouble("price");
@@ -158,8 +170,6 @@ public class CatalogSync {
                             default: continue;
                         }
                         p.setPrice(priceD.floatValue());
-
-                        // читаем дату: сначала пробуем .getDate(), потом .get("date")
                         Date dt = doc.getDate("date");
                         if (dt != null) {
                             p.setDate(dt.getTime());
@@ -185,33 +195,41 @@ public class CatalogSync {
                 });
     }
 
-    /** Шаг N: синхронизируем объёмы из Firestore → Room.volumes */
+
+    /** Шаг 0: синхронизируем объёмы из Firestore → Room.volumes */
     public void syncVolumes(Callback cb) {
         firestore.collection("volumes")
                 .get()
-                .addOnSuccessListener(qs -> {
+                .addOnSuccessListener(querySnapshot -> {
                     List<Volume> list = new ArrayList<>();
-                    for (DocumentSnapshot doc : qs) {
-                        Volume v = new Volume();
-                        // допустим, в Firestore у вас поля: volumeId (int), size (String), ml (int)
-                        Long vid = doc.getLong("volumeId");
-                        Long ml  = doc.getLong("ml");
-                        String size = doc.getString("size");
-                        if (vid == null || ml == null || size == null) continue;
-                        v.setVolumeId(vid.intValue());
-                        v.setMl(ml.intValue());
-                        v.setSize(size);
-                        list.add(v);
+                    for (DocumentSnapshot doc : querySnapshot) {
+                        // Для каждого поля в документе (S, M, L)
+                        Map<String, Object> data = doc.getData();
+                        if (data == null) continue;
+                        for (Map.Entry<String, Object> entry : data.entrySet()) {
+                            String sizeKey = entry.getKey();        // "S", "M" или "L"
+                            Object rawValue = entry.getValue();
+                            if (!(rawValue instanceof Number)) continue;
+                            int ml = ((Number) rawValue).intValue();
+
+                            Volume v = new Volume();
+                            v.setSize(sizeKey);
+                            v.setMl(ml);
+                            // Не вызываем v.setVolumeId(), чтобы Room авто‑присвоил ID
+                            list.add(v);
+                        }
                     }
+                    // Пишем результат в Room в фоне
                     new Thread(() -> {
                         db.volumeDAO().insertAll(list);
-                        Log.d("CatalogSync","Room: записано объёмов = "+list.size());
+                        Log.d("CatalogSync", "Room: записано объёмов = " + list.size());
                         cb.onComplete();
                     }).start();
                 })
                 .addOnFailureListener(e -> {
-                    Log.e("CatalogSync","Ошибка при загрузке volumes", e);
+                    Log.e("CatalogSync", "Ошибка при загрузке volumes", e);
                     cb.onComplete();
                 });
     }
+
 }
