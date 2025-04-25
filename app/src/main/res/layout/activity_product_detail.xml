@@ -7,7 +7,7 @@
     android:layout_height="match_parent"
     android:background="@android:color/white">
 
-    <!-- Toolbar с кнопкой «назад» и заголовком -->
+    <!-- Toolbar -->
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
@@ -17,7 +17,6 @@
         app:title="Описание"
         app:titleTextColor="@android:color/white" />
 
-    <!-- Всё остальное располагаем под тулбаром -->
     <LinearLayout
         android:orientation="vertical"
         android:layout_marginTop="?attr/actionBarSize"
@@ -35,10 +34,10 @@
                 android:layout_height="wrap_content"
                 android:padding="16dp">
 
-                <!-- Изображение -->
+                <!-- Карточка с изображением -->
                 <androidx.cardview.widget.CardView
                     android:layout_width="match_parent"
-                    android:layout_height="300dp"
+                    android:layout_height="150dp"
                     app:cardCornerRadius="16dp"
                     app:cardUseCompatPadding="true">
 
@@ -50,7 +49,7 @@
                         android:src="@drawable/ic_placeholder" />
                 </androidx.cardview.widget.CardView>
 
-                <!-- Название + рейтинг -->
+                <!-- Название и рейтинг товара -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -77,14 +76,12 @@
                         android:textColor="#212121" />
                 </LinearLayout>
 
-                <!-- Разделитель -->
+                <!-- Разделитель и описание -->
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
                     android:background="#E0E0E0"
                     android:layout_marginTop="12dp"/>
-
-                <!-- Описание -->
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -93,7 +90,6 @@
                     android:textStyle="bold"
                     android:layout_marginTop="16dp"
                     android:textColor="#212121"/>
-
                 <TextView
                     android:id="@+id/detailDescription"
                     android:layout_width="match_parent"
@@ -102,7 +98,7 @@
                     android:textSize="14sp"
                     android:textColor="#757575"/>
 
-                <!-- Размер -->
+                <!-- Выбор размера -->
                 <TextView
                     android:id="@+id/labelSize"
                     android:layout_width="match_parent"
@@ -112,7 +108,6 @@
                     android:textStyle="bold"
                     android:layout_marginTop="16dp"
                     android:textColor="#212121"/>
-
                 <com.google.android.material.button.MaterialButtonToggleGroup
                     android:id="@+id/sizeToggle"
                     android:layout_width="match_parent"
@@ -126,29 +121,59 @@
                         android:layout_width="0dp"
                         android:layout_weight="1"
                         android:layout_height="wrap_content"
-                        android:text="S"/>
-
+                        android:text="S / 200 ml"/>
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnSizeM"
                         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                         android:layout_width="0dp"
                         android:layout_weight="1"
                         android:layout_height="wrap_content"
-                        android:text="M"/>
-
+                        android:text="M / 300 ml"/>
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnSizeL"
                         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                         android:layout_width="0dp"
                         android:layout_weight="1"
                         android:layout_height="wrap_content"
-                        android:text="L"/>
+                        android:text="L / 400 ml"/>
                 </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                <!-- Блок отзывов -->
+                <androidx.appcompat.widget.AppCompatRatingBar
+                    android:id="@+id/ratingBar"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:numStars="5"
+                    android:stepSize="1"
+                    android:layout_marginTop="24dp"/>
+
+                <EditText
+                    android:id="@+id/etComment"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="Ваш отзыв"
+                    android:inputType="textMultiLine"
+                    android:lines="3"
+                    android:layout_marginTop="8dp"/>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSubmitReview"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Отправить отзыв"
+                    android:layout_marginTop="8dp"/>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rvReviews"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:nestedScrollingEnabled="true"/>
 
             </LinearLayout>
         </ScrollView>
 
-        <!-- Нижняя панель: цена + кнопка -->
+        <!-- Нижняя панель: цена + корзина -->
         <LinearLayout
             android:orientation="horizontal"
             android:layout_width="match_parent"
@@ -171,7 +196,7 @@
                 android:id="@+id/btnAddToCart"
                 android:layout_width="250dp"
                 android:layout_height="50dp"
-                android:text="В корзину"
+                android:text="В корзину"
                 style="@style/Widget.MaterialComponents.Button"
                 android:backgroundTint="#C67C4E"/>
         </LinearLayout>
