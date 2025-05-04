@@ -34,10 +34,10 @@
                 android:layout_height="wrap_content"
                 android:padding="16dp">
 
-                <!-- Карточка с изображением -->
+                <!-- Изображение -->
                 <androidx.cardview.widget.CardView
                     android:layout_width="match_parent"
-                    android:layout_height="150dp"
+                    android:layout_height="250dp"
                     app:cardCornerRadius="16dp"
                     app:cardUseCompatPadding="true">
 
@@ -49,7 +49,7 @@
                         android:src="@drawable/ic_placeholder" />
                 </androidx.cardview.widget.CardView>
 
-                <!-- Название и рейтинг товара -->
+                <!-- Название + рейтинг -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -76,7 +76,7 @@
                         android:textColor="#212121" />
                 </LinearLayout>
 
-                <!-- Разделитель и описание -->
+                <!-- Разделитель + описание -->
                 <View
                     android:layout_width="match_parent"
                     android:layout_height="1dp"
@@ -86,7 +86,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Описание"
-                    android:textSize="14sp"
+                    android:textSize="18sp"
                     android:textStyle="bold"
                     android:layout_marginTop="16dp"
                     android:textColor="#212121"/>
@@ -95,19 +95,32 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:textSize="14sp"
+                    android:textSize="18sp"
                     android:textColor="#757575"/>
 
-                <!-- Выбор размера -->
+                <!-- Поле "Размер" (для напитков) -->
                 <TextView
                     android:id="@+id/labelSize"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="Размер"
-                    android:textSize="14sp"
+                    android:textSize="18sp"
                     android:textStyle="bold"
                     android:layout_marginTop="16dp"
                     android:textColor="#212121"/>
+
+                <!-- Вес (для блюд/десертов) -->
+                <TextView
+                    android:id="@+id/detailSize"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:textColor="#212121"
+                    android:visibility="gone"/>
+
+                <!-- ToggleGroup для объёмов напитков -->
                 <com.google.android.material.button.MaterialButtonToggleGroup
                     android:id="@+id/sizeToggle"
                     android:layout_width="match_parent"
@@ -122,6 +135,7 @@
                         android:layout_weight="1"
                         android:layout_height="wrap_content"
                         android:text="S / 200 ml"/>
+
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnSizeM"
                         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
@@ -129,6 +143,7 @@
                         android:layout_weight="1"
                         android:layout_height="wrap_content"
                         android:text="M / 300 ml"/>
+
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnSizeL"
                         style="@style/Widget.MaterialComponents.Button.OutlinedButton"
@@ -138,42 +153,64 @@
                         android:text="L / 400 ml"/>
                 </com.google.android.material.button.MaterialButtonToggleGroup>
 
-                <!-- Блок отзывов -->
-                <androidx.appcompat.widget.AppCompatRatingBar
-                    android:id="@+id/ratingBar"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:numStars="5"
-                    android:stepSize="1"
-                    android:layout_marginTop="24dp"/>
-
-                <EditText
-                    android:id="@+id/etComment"
+                <!-- Раздел отзывов (скрыт, если нет отзывов) -->
+                <LinearLayout
+                    android:id="@+id/reviewSection"
+                    android:orientation="vertical"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="Ваш отзыв"
-                    android:inputType="textMultiLine"
-                    android:lines="3"
-                    android:layout_marginTop="8dp"/>
+                    android:visibility="gone"
+                    android:layout_marginTop="24dp">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnSubmitReview"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Отправить отзыв"
-                    android:layout_marginTop="8dp"/>
+                    <TextView
+                        android:id="@+id/tvReviewsTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Отзывы"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:textColor="#212121"/>
 
-                <androidx.recyclerview.widget.RecyclerView
-                    android:id="@+id/rvReviews"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:nestedScrollingEnabled="true"/>
+                    <!-- Форма для отправки отзыва (скрыта по умолчанию) -->
+                    <RatingBar
+                        android:id="@+id/ratingBar"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:numStars="5"
+                        android:stepSize="1"
+                        android:visibility="gone"
+                        android:layout_marginTop="16dp"/>
+
+                    <EditText
+                        android:id="@+id/etComment"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="Ваш отзыв"
+                        android:inputType="textMultiLine"
+                        android:lines="3"
+                        android:visibility="gone"
+                        android:layout_marginTop="8dp"/>
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSubmitReview"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Отправить отзыв"
+                        android:visibility="gone"
+                        android:layout_marginTop="8dp"/>
+
+                    <androidx.recyclerview.widget.RecyclerView
+                        android:id="@+id/rvReviews"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:nestedScrollingEnabled="true"/>
+                </LinearLayout>
 
             </LinearLayout>
         </ScrollView>
 
-        <!-- Нижняя панель: цена + корзина -->
+        <!-- Нижняя панель: цена + кнопка -->
         <LinearLayout
             android:orientation="horizontal"
             android:layout_width="match_parent"

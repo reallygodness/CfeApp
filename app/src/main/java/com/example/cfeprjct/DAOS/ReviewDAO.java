@@ -23,6 +23,15 @@ public interface ReviewDAO {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     void insertAll(List<Review> reviews);
 
+    @Query("SELECT AVG(rating) FROM reviews WHERE drinkId = :id")
+    Float getAverageRatingForDrinkId(int id);
+
+    @Query("SELECT AVG(rating) FROM reviews WHERE dishId = :id")
+    Float getAverageRatingForDishId(int id);
+
+    @Query("SELECT AVG(rating) FROM reviews WHERE dessertId = :id")
+    Float getAverageRatingForDessertId(int id);
+
     // получить отзывы для напитка
     @Query("SELECT * FROM reviews WHERE drinkId = :id ORDER BY reviewDate DESC")
     LiveData<List<Review>> getReviewsForDrinkId(int id);

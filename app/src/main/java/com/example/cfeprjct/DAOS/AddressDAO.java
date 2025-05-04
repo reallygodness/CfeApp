@@ -13,11 +13,7 @@ import java.util.List;
 
 @Dao
 public interface AddressDAO {
-    @Insert
-    long insertAddress(Address address);
 
-    @Update
-    void updateAddress(Address address);
 
     @Delete
     void deleteAddress(Address address);
@@ -31,8 +27,19 @@ public interface AddressDAO {
     @Query("SELECT * FROM addresses WHERE userId = :userId LIMIT 1")
     Address getByUserId(String userId);
 
-    @Query("SELECT * FROM `addresses` WHERE userId = :userId LIMIT 1")
-    Address getAddressByUserId(String userId);
 
+
+
+    /** Вставка или обновление; возвращаем rowId при вставке */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    long insertAddress(Address address);
+
+    /** Обновление существующей записи */
+    @Update
+    void updateAddress(Address address);
+
+    /** Поиск по userId */
+    @Query("SELECT * FROM addresses WHERE userId = :userId")
+    Address getAddressByUserId(String userId);
 
 }

@@ -5,7 +5,6 @@ import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Geocoder;
-import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -14,7 +13,6 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
-import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ImageView;
@@ -23,6 +21,7 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.fragment.app.Fragment;
@@ -46,7 +45,6 @@ import com.example.cfeprjct.R;
 import com.example.cfeprjct.Sync.CatalogSync;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
-import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.io.IOException;
@@ -59,43 +57,38 @@ public class CatalogFragment extends Fragment {
     private static final int REQ_LOC = 1001;
 
     private FusedLocationProviderClient fusedLocationClient;
-    private FirebaseFirestore firestore;
+    private FirebaseFirestore         firestore;
 
-    private AppDatabase db;
-    private DrinkDAO     drinkDAO;
-    private DishDAO      dishDAO;
-    private DessertDAO   dessertDAO;
-    private PriceListDAO priceListDAO;
-    private AddressDAO   addressDAO;
+    private AppDatabase     db;
+    private DrinkDAO        drinkDAO;
+    private DishDAO         dishDAO;
+    private DessertDAO      dessertDAO;
+    private PriceListDAO    priceListDAO;
+    private AddressDAO      addressDAO;
 
-    private EditText     searchEditText;
-    private RecyclerView catalogRecyclerView;
-    private CatalogAdapter catalogAdapter;
-    private Button       drinkTabButton, dishTabButton, dessertTabButton;
-    private TextView     addressTextView;
-    private ImageView    editAddressButton;
+    private EditText        searchEditText;
+    private RecyclerView    catalogRecyclerView;
+    private CatalogAdapter  catalogAdapter;
+    private Button          drinkTabButton, dishTabButton, dessertTabButton;
+    private TextView        addressTextView;
+    private ImageView       editAddressButton;
 
     private enum Category { DRINKS, DISHES, DESSERTS }
     private Category currentCategory = Category.DRINKS;
 
-    @Nullable
-    @Override
+    @Nullable @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
                              @Nullable ViewGroup container,
                              @Nullable Bundle savedInstanceState) {
+        // статус-бар
         Window window = requireActivity().getWindow();
-        // Делаем фон статус‑бара чёрным
         window.setStatusBarColor(Color.BLACK);
-
-        // Управляем цветом иконок
-        WindowInsetsControllerCompat insetsController =
-                new WindowInsetsControllerCompat(window, window.getDecorView());
-        // false = светлые иконки (для тёмного фона), true = тёмные иконки (для светлого фона)
-        insetsController.setAppearanceLightStatusBars(false);
+        new WindowInsetsControllerCompat(window, window.getDecorView())
+                .setAppearanceLightStatusBars(false);
 
         View view = inflater.inflate(R.layout.fragment_catalog, container, false);
 
-        // 1) Инициализируем базу и DAO
+        // Room & Firestore
         db             = AppDatabase.getInstance(requireContext());
         drinkDAO       = db.drinkDAO();
         dishDAO        = db.dishDAO();
@@ -104,7 +97,7 @@ public class CatalogFragment extends Fragment {
         addressDAO     = db.addressDAO();
         firestore      = FirebaseFirestore.getInstance();
 
-        // 2) Находим view
+        // UI
         searchEditText      = view.findViewById(R.id.searchEditText);
         drinkTabButton      = view.findViewById(R.id.drinkTabButton);
         dishTabButton       = view.findViewById(R.id.dishTabButton);
@@ -117,7 +110,7 @@ public class CatalogFragment extends Fragment {
         catalogAdapter = new CatalogAdapter();
         catalogRecyclerView.setAdapter(catalogAdapter);
 
-        // 3) Сначала пробуем загрузить адрес из Room
+        // Загрузка адреса из Room или Firestore
         String userId = AuthUtils.getLoggedInUserId(requireContext());
         if (userId != null) {
             new Thread(() -> {
@@ -127,17 +120,19 @@ public class CatalogFragment extends Fragment {
                             + ", " + local.getStreet()
                             + " " + local.getHouse()
                             + (local.getApartment().isEmpty() ? "" : ", кв. " + local.getApartment());
-                    requireActivity().runOnUiThread(() -> addressTextView.setText(formatted));
+                    if (isAdded()) {
+                        requireActivity().runOnUiThread(() ->
+                                addressTextView.setText(formatted));
+                    }
                 } else {
-                    // если в локальной БД нет — дергаем Firestore
                     fetchAddressFromFirestore(userId);
                 }
             }).start();
         }
 
-        // 4) Настраиваем геолокацию
+        // Геолокация
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireContext());
-        View.OnClickListener addrClick = v -> {
+        addressTextView.setOnClickListener(v -> {
             if (ContextCompat.checkSelfPermission(requireContext(),
                     Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
                     || ContextCompat.checkSelfPermission(requireContext(),
@@ -149,24 +144,46 @@ public class CatalogFragment extends Fragment {
             } else {
                 requestLastLocation();
             }
-        };
-        addressTextView.setOnClickListener(addrClick);
-        editAddressButton.setOnClickListener(addrClick);
+        });
 
-        // 5) Синхронизируем каталог из Firestore → Room
+        // Карандашик – ручной ввод
+        editAddressButton.setOnClickListener(v -> showAddressInputDialog());
+
+        // Синхронизация каталога
         CatalogSync sync = new CatalogSync(requireContext());
-        sync.syncDrinks  (() -> requireActivity().runOnUiThread(() -> loadDrinks  (searchEditText.getText().toString())));
-        sync.syncDishes  (() -> requireActivity().runOnUiThread(() -> loadDishes  (searchEditText.getText().toString())));
-        sync.syncDesserts(() -> requireActivity().runOnUiThread(() -> loadDesserts(searchEditText.getText().toString())));
+        sync.syncDrinks(() -> {
+            if (!isAdded()) return;
+            requireActivity().runOnUiThread(() ->
+                    loadDrinks(searchEditText.getText().toString()));
+        });
+        sync.syncDishes(() -> {
+            if (!isAdded()) return;
+            requireActivity().runOnUiThread(() ->
+                    loadDishes(searchEditText.getText().toString()));
+        });
+        sync.syncDesserts(() -> {
+            if (!isAdded()) return;
+            requireActivity().runOnUiThread(() ->
+                    loadDesserts(searchEditText.getText().toString()));
+        });
 
-        // 6) Вкладки
-        drinkTabButton .setOnClickListener(v -> { currentCategory = Category.DRINKS;  loadDrinks  (searchEditText.getText().toString()); });
-        dishTabButton  .setOnClickListener(v -> { currentCategory = Category.DISHES;  loadDishes  (searchEditText.getText().toString()); });
-        dessertTabButton.setOnClickListener(v -> { currentCategory = Category.DESSERTS; loadDesserts(searchEditText.getText().toString()); });
+        // Вкладки
+        drinkTabButton.setOnClickListener(v -> {
+            currentCategory = Category.DRINKS;
+            loadDrinks(searchEditText.getText().toString());
+        });
+        dishTabButton.setOnClickListener(v -> {
+            currentCategory = Category.DISHES;
+            loadDishes(searchEditText.getText().toString());
+        });
+        dessertTabButton.setOnClickListener(v -> {
+            currentCategory = Category.DESSERTS;
+            loadDesserts(searchEditText.getText().toString());
+        });
 
-        // 7) Поиск
+        // Поиск
         searchEditText.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int st, int c, int a) {}
+            @Override public void beforeTextChanged(CharSequence s, int st, int b, int c) {}
             @Override public void onTextChanged    (CharSequence s, int st, int b, int c) {}
             @Override public void afterTextChanged (Editable s) {
                 String q = s.toString().trim();
@@ -222,8 +239,11 @@ public class CatalogFragment extends Fragment {
                     String street = src.getThoroughfare();
                     String house  = src.getFeatureName();
                     String formatted = city + ", " + street + " " + house;
-                    requireActivity().runOnUiThread(() -> addressTextView.setText(formatted));
-                    saveAndSyncAddress(city, street, house);
+                    if (isAdded()) {
+                        requireActivity().runOnUiThread(() ->
+                                addressTextView.setText(formatted));
+                    }
+                    saveAndSyncAddress(city, street, house, "");
                 }
             } catch (IOException e) {
                 Log.e("CatalogFragment", "reverseGeocode error", e);
@@ -231,37 +251,97 @@ public class CatalogFragment extends Fragment {
         }).start();
     }
 
-    private void saveAndSyncAddress(String city, String street, String house) {
+    private void showAddressInputDialog() {
+        View dlg = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_edit_address, null);
+        EditText etCity      = dlg.findViewById(R.id.etCity);
+        EditText etStreet    = dlg.findViewById(R.id.etStreet);
+        EditText etHouse     = dlg.findViewById(R.id.etHouse);
+        EditText etApartment = dlg.findViewById(R.id.etApartment);
+
+        // Подгружаем текущий адрес
+        new Thread(() -> {
+            String uid = AuthUtils.getLoggedInUserId(requireContext());
+            if (uid != null) {
+                Address existing = addressDAO.getAddressByUserId(uid);
+                if (existing != null && isAdded()) {
+                    requireActivity().runOnUiThread(() -> {
+                        etCity.    setText(existing.getCity());
+                        etStreet.  setText(existing.getStreet());
+                        etHouse.   setText(existing.getHouse());
+                        etApartment.setText(existing.getApartment());
+                    });
+                }
+            }
+        }).start();
+
+        new AlertDialog.Builder(requireContext())
+                .setTitle("Редактировать адрес")
+                .setView(dlg)
+                .setPositiveButton("Сохранить", (dialog, which) -> {
+                    saveAndSyncAddress(
+                            etCity.getText().toString().trim(),
+                            etStreet.getText().toString().trim(),
+                            etHouse.getText().toString().trim(),
+                            etApartment.getText().toString().trim()
+                    );
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private void saveAndSyncAddress(String city,
+                                    String street,
+                                    String house,
+                                    String apartment) {
         String userId = AuthUtils.getLoggedInUserId(requireContext());
         if (userId == null) return;
 
-        // 1) Вставляем в локальную Room
-        Address addr = new Address();
-        addr.setUserId(userId);
-        addr.setCity(city);
-        addr.setStreet(street);
-        addr.setHouse(house);
-        addr.setApartment("");
-        long rowId = addressDAO.insertAddress(addr);
-        int addressId = (int) rowId;
+        new Thread(() -> {
+            Address existing = addressDAO.getAddressByUserId(userId);
+            int addressId;
+            if (existing != null) {
+                existing.setCity(city);
+                existing.setStreet(street);
+                existing.setHouse(house);
+                existing.setApartment(apartment);
+                addressDAO.updateAddress(existing);
+                addressId = existing.getAddressId();
+            } else {
+                Address addr = new Address();
+                addr.setUserId(userId);
+                addr.setCity(city);
+                addr.setStreet(street);
+                addr.setHouse(house);
+                addr.setApartment(apartment);
+                addressId = (int) addressDAO.insertAddress(addr);
+            }
 
-        // 2) Сохраняем в Firestore
-        Map<String, Object> map = new HashMap<>();
-        map.put("addressId", addressId);
-        map.put("userId",    userId);
-        map.put("city",      city);
-        map.put("street",    street);
-        map.put("house",     house);
-        map.put("apartment","");
+            Map<String,Object> map = new HashMap<>();
+            map.put("addressId", addressId);
+            map.put("userId",    userId);
+            map.put("city",      city);
+            map.put("street",    street);
+            map.put("house",     house);
+            map.put("apartment", apartment);
 
-        firestore.collection("addresses")
-                .document(String.valueOf(addressId))
-                .set(map);
+            firestore.collection("addresses")
+                    .document(String.valueOf(addressId))
+                    .set(map);
 
-        // 3) Обновляем поле в users/{userId}
-        firestore.collection("users")
-                .document(userId)
-                .update("addressId", addressId);
+            firestore.collection("users")
+                    .document(userId)
+                    .update("addressId", addressId);
+
+            String formatted = city
+                    + ", " + street
+                    + " "  + house
+                    + (apartment.isEmpty() ? "" : ", кв. " + apartment);
+            if (isAdded()) {
+                requireActivity().runOnUiThread(() ->
+                        addressTextView.setText(formatted));
+            }
+        }).start();
     }
 
     private void fetchAddressFromFirestore(String userId) {
@@ -270,37 +350,34 @@ public class CatalogFragment extends Fragment {
                 .get()
                 .addOnSuccessListener(userDoc -> {
                     if (userDoc.exists() && userDoc.contains("addressId")) {
-                        Long addrId = userDoc.getLong("addressId");
-                        if (addrId != null) {
-                            firestore.collection("addresses")
-                                    .document(String.valueOf(addrId))
-                                    .get()
-                                    .addOnSuccessListener(addrDoc -> {
-                                        if (addrDoc.exists()) {
-                                            String city   = addrDoc.getString("city");
-                                            String street = addrDoc.getString("street");
-                                            String house  = addrDoc.getString("house");
-                                            String apt    = addrDoc.getString("apartment");
-                                            String formatted = (city != null ? city : "")
-                                                    + (street != null ? ", " + street : "")
-                                                    + (house != null ? " " + house : "")
-                                                    + (apt != null && !apt.isEmpty() ? ", кв. " + apt : "");
+                        String addrId = String.valueOf(userDoc.getLong("addressId"));
+                        firestore.collection("addresses")
+                                .document(addrId)
+                                .get()
+                                .addOnSuccessListener(addrDoc -> {
+                                    if (addrDoc.exists()) {
+                                        String city   = addrDoc.getString("city");
+                                        String street = addrDoc.getString("street");
+                                        String house  = addrDoc.getString("house");
+                                        String apt    = addrDoc.getString("apartment");
+                                        String formatted = city
+                                                + ", " + street
+                                                + " " + house
+                                                + (apt != null && !apt.isEmpty() ? ", кв. " + apt : "");
+                                        if (isAdded()) {
                                             addressTextView.setText(formatted);
-
-                                            // Сохраняем в Room
-                                            new Thread(() -> {
-                                                Address a = new Address();
-                                                a.setAddressId(addrId.intValue());
-                                                a.setUserId(userId);
-                                                a.setCity(city != null ? city : "");
-                                                a.setStreet(street != null ? street : "");
-                                                a.setHouse(house != null ? house : "");
-                                                a.setApartment(apt != null ? apt : "");
-                                                addressDAO.insertAddress(a);
-                                            }).start();
                                         }
-                                    });
-                        }
+                                        new Thread(() -> {
+                                            Address a = new Address();
+                                            a.setUserId(userId);
+                                            a.setCity(city   != null ? city   : "");
+                                            a.setStreet(street != null ? street : "");
+                                            a.setHouse(house  != null ? house  : "");
+                                            a.setApartment(apt != null ? apt    : "");
+                                            addressDAO.insertAddress(a);
+                                        }).start();
+                                    }
+                                });
                     }
                 });
     }
@@ -312,17 +389,26 @@ public class CatalogFragment extends Fragment {
                     : drinkDAO.searchDrinksByName("%" + query + "%");
             List<CatalogItem> items = new ArrayList<>();
             for (Drink d : list) {
-                float price = priceListDAO.getLatestPriceForDrink(d.getDrinkId());
-                items.add(new CatalogItem(
+                int price = (int) priceListDAO.getLatestPriceForDrink(d.getDrinkId());
+                // size=0 для напитков
+                CatalogItem item = new CatalogItem(
                         d.getDrinkId(),
                         d.getName(),
                         d.getDescription(),
-                        (int) price,
+                        price,
                         "drink",
-                        d.getImageUrl()
-                ));
+                        d.getImageUrl(),
+                        0
+                );
+                Float avg = db.reviewDAO().getAverageRatingForDrinkId(d.getDrinkId());
+                item.setRating(avg != null ? avg : 0f);
+                items.add(item);
             }
-            requireActivity().runOnUiThread(() -> catalogAdapter.setItems(items));
+            if (isAdded()) {
+                requireActivity().runOnUiThread(() ->
+                        catalogAdapter.setItems(items)
+                );
+            }
         }).start();
     }
 
@@ -333,17 +419,25 @@ public class CatalogFragment extends Fragment {
                     : dishDAO.searchDishesByName("%" + query + "%");
             List<CatalogItem> items = new ArrayList<>();
             for (Dish d : list) {
-                float price = priceListDAO.getLatestPriceForDish(d.getDishId());
-                items.add(new CatalogItem(
+                int price = (int) priceListDAO.getLatestPriceForDish(d.getDishId());
+                CatalogItem item = new CatalogItem(
                         d.getDishId(),
                         d.getName(),
                         d.getDescription(),
-                        (int) price,
+                        price,
                         "dish",
-                        d.getImageUrl()
-                ));
+                        d.getImageUrl(),
+                        d.getSize()
+                );
+                Float avg = db.reviewDAO().getAverageRatingForDishId(d.getDishId());
+                item.setRating(avg != null ? avg : 0f);
+                items.add(item);
             }
-            requireActivity().runOnUiThread(() -> catalogAdapter.setItems(items));
+            if (isAdded()) {
+                requireActivity().runOnUiThread(() ->
+                        catalogAdapter.setItems(items)
+                );
+            }
         }).start();
     }
 
@@ -354,17 +448,25 @@ public class CatalogFragment extends Fragment {
                     : dessertDAO.searchDessertsByName("%" + query + "%");
             List<CatalogItem> items = new ArrayList<>();
             for (Dessert d : list) {
-                float price = priceListDAO.getLatestPriceForDessert(d.getDessertId());
-                items.add(new CatalogItem(
+                int price = (int) priceListDAO.getLatestPriceForDessert(d.getDessertId());
+                CatalogItem item = new CatalogItem(
                         d.getDessertId(),
                         d.getName(),
                         d.getDescription(),
-                        (int) price,
+                        price,
                         "dessert",
-                        d.getImageUrl()
-                ));
+                        d.getImageUrl(),
+                        d.getSize()
+                );
+                Float avg = db.reviewDAO().getAverageRatingForDessertId(d.getDessertId());
+                item.setRating(avg != null ? avg : 0f);
+                items.add(item);
             }
-            requireActivity().runOnUiThread(() -> catalogAdapter.setItems(items));
+            if (isAdded()) {
+                requireActivity().runOnUiThread(() ->
+                        catalogAdapter.setItems(items)
+                );
+            }
         }).start();
     }
 }

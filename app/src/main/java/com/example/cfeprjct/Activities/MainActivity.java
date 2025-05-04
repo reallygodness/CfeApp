@@ -1,68 +1,70 @@
 package com.example.cfeprjct.Activities;
 
 import android.annotation.SuppressLint;
-import android.content.Intent;
 import android.os.Bundle;
-import android.widget.TextView;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
 import androidx.fragment.app.Fragment;
 
 import com.example.cfeprjct.Activities.Fragments.CatalogFragment;
+import com.example.cfeprjct.Activities.Fragments.CartFragment;
+import com.example.cfeprjct.Activities.Fragments.OrdersFragment;
 import com.example.cfeprjct.Activities.Fragments.ProfileFragment;
-import com.example.cfeprjct.AuthUtils;
 import com.example.cfeprjct.R;
 import com.google.android.material.bottomnavigation.BottomNavigationView;
 
 public class MainActivity extends AppCompatActivity {
 
-    TextView registerView;
-    TextView auth;
-
     @SuppressLint("NonConstantResourceId")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Отключаем ночной режим
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
         super.onCreate(savedInstanceState);
+
+        // Edge-to-edge
         EdgeToEdge.enable(this);
+
         setContentView(R.layout.activity_main);
+
         BottomNavigationView bottomNavigationView = findViewById(R.id.bottom_navigation);
-
         bottomNavigationView.setOnItemSelectedListener(item -> {
-            Fragment selectedFragment = null;
+            Fragment selectedFragment;
 
-            if (item.getItemId() == R.id.nav_catalog) {
+            int id = item.getItemId();
+            if (id == R.id.nav_catalog) {
                 selectedFragment = new CatalogFragment();
-            } else if (item.getItemId() == R.id.nav_profile) {
+            } else if (id == R.id.nav_cart) {
+                selectedFragment = new CartFragment();
+            } else if (id == R.id.nav_orders) {
+                selectedFragment = new OrdersFragment();
+            } else if (id == R.id.nav_profile) {
                 selectedFragment = new ProfileFragment();
+            } else {
+                return false;
             }
 
-            if (selectedFragment != null) {
-                getSupportFragmentManager().beginTransaction()
-                        .replace(R.id.frame_container, selectedFragment)
-                        .commit();
-            }
+            getSupportFragmentManager()
+                    .beginTransaction()
+                    .replace(R.id.frame_container, selectedFragment)
+                    .commit();
+
             return true;
         });
-        // Загружаем экран Каталога по умолчанию
+
+        // При первом запуске сразу открываем каталог
         if (savedInstanceState == null) {
-            loadFragment(new CatalogFragment());
+            bottomNavigationView.setSelectedItemId(R.id.nav_catalog);
         }
     }
-    private void loadFragment(Fragment fragment) {
-        getSupportFragmentManager().beginTransaction()
-                .replace(R.id.frame_container, fragment)
-                .commit();
-    }
 
-    // MainActivity.java
+    /**
+     * Чтобы из фрагментов было удобно переключать пункт BottomNavigationView,
+     * возвращаем здесь его экземпляр.
+     */
     public BottomNavigationView getBottomNavigationView() {
-        return (BottomNavigationView) findViewById(R.id.bottom_navigation); // Убедитесь, что id совпадает с вашим
+        return findViewById(R.id.bottom_navigation);
     }
-
 }

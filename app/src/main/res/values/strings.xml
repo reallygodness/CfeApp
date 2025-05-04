@@ -3,4 +3,5 @@
     <string name="forgot_pass"><u>Забыли пароль?</u></string>
     <string name="catalog_recycler_desc">Список товаров каталога</string>
     <string name="catalog_list_description">Каталог товаров</string>
+    <string name="remove_from_cart">Удалить из корзины</string>
 </resources>

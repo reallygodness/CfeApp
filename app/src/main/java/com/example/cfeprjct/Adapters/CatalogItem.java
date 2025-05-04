@@ -19,7 +19,11 @@ public class CatalogItem implements Serializable {
 
     private Float rating;
 
+    private final int    size;    // ← добавили
+
     private int defaultSizeButtonId;
+
+
 
 
     public CatalogItem(int id,
@@ -27,13 +31,15 @@ public class CatalogItem implements Serializable {
                        String description,
                        int price,
                        String category,
-                       String imageUrl) {
+                       String imageUrl, int size) {
         this.id = id;
         this.title = title;
         this.description = description;
         this.price = price;
         this.category = category;
         this.imageUrl = imageUrl;
+        this.size        = size;
+        this.rating      = 0f;
     }
 
     public int getId() {
@@ -60,6 +66,8 @@ public class CatalogItem implements Serializable {
         return imageUrl;
     }
     public Float getRating() { return rating; }
+
+    public int getSize() { return size; }
     public void setRating(Float rating) { this.rating = rating; }
 
     public int getDefaultSizeButtonId() {

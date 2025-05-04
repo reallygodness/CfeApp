@@ -15,6 +15,8 @@ public class Dessert {
     @ColumnInfo(name = "imageUrl")
     private String imageUrl;
 
+    private int size;
+
     // Геттеры и сеттеры
     public int getDessertId() { return dessertId; }
     public String getImageUrl() {
@@ -28,4 +30,6 @@ public class Dessert {
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
     }
+    public int getSize() { return size; }
+    public void setSize(int size) { this.size = size; }
 }

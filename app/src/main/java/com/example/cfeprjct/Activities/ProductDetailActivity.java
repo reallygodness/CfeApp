@@ -1,7 +1,6 @@
 package com.example.cfeprjct.Activities;
 
 import android.os.Bundle;
-import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
@@ -23,6 +22,16 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.example.cfeprjct.Adapters.CatalogItem;
 import com.example.cfeprjct.AppDatabase;
+import com.example.cfeprjct.AuthUtils;
+import com.example.cfeprjct.DAOS.OrderDAO;
+import com.example.cfeprjct.DAOS.OrderedDessertDAO;
+import com.example.cfeprjct.DAOS.OrderedDishDAO;
+import com.example.cfeprjct.DAOS.OrderedDrinkDAO;
+import com.example.cfeprjct.Entities.CartItem;
+import com.example.cfeprjct.Entities.Order;
+import com.example.cfeprjct.Entities.OrderedDessert;
+import com.example.cfeprjct.Entities.OrderedDish;
+import com.example.cfeprjct.Entities.OrderedDrink;
 import com.example.cfeprjct.Entities.Review;
 import com.example.cfeprjct.Entities.Volume;
 import com.example.cfeprjct.R;
@@ -30,12 +39,11 @@ import com.example.cfeprjct.Sync.CatalogSync;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.button.MaterialButtonToggleGroup;
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class ProductDetailActivity extends AppCompatActivity {
@@ -43,63 +51,91 @@ public class ProductDetailActivity extends AppCompatActivity {
     public static final String EXTRA_ITEM = "extra_catalog_item";
 
     private AppDatabase db;
+    private FirebaseFirestore firestore;
+
     private float basePrice;
+    private float calculatedPrice;
+    private int selectedVolumeMl;
+
     private TextView tvPrice;
+    private TextView tvRating;
+    private TextView tvSize;
+    private TextView tvLabelSize;
     private MaterialButtonToggleGroup sizes;
     private int mlS, mlM, mlL;
 
-    // Отзывы
+    // отзывы
+    private View reviewSection;
     private RatingBar ratingBar;
     private EditText etComment;
     private MaterialButton btnSubmitReview;
     private RecyclerView rvReviews;
-    private ReviewAdapter reviewAdapter;
-    private FirebaseFirestore firestore;
+    private ListAdapter<Review, ?> reviewAdapter;
+
     private String userId;
+    private boolean isLoggedIn;
     private String productType;
     private int productId;
+
+    // DAO для проверок покупок
+    private OrderDAO orderDAO;
+    private OrderedDrinkDAO orderedDrinkDAO;
+    private OrderedDishDAO orderedDishDAO;
+    private OrderedDessertDAO orderedDessertDAO;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_product_detail);
 
-        // edge-to-edge
+        // edge-to-edge padding on toolbar
         View root = findViewById(R.id.coordinator_root);
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             Insets sb = insets.getInsets(WindowInsetsCompat.Type.statusBars());
             MaterialToolbar tb = findViewById(R.id.toolbar);
-            tb.setPadding(tb.getPaddingLeft(), sb.top, tb.getPaddingRight(), tb.getPaddingBottom());
+            tb.setPadding(tb.getPaddingLeft(), sb.top,
+                    tb.getPaddingRight(), tb.getPaddingBottom());
             return insets;
         });
 
-        // Получаем переданный объект
-        CatalogItem item = (CatalogItem) getIntent().getSerializableExtra(EXTRA_ITEM);
-        if (item == null) {
-            finish();
-            return;
-        }
-        productType = item.getType();  // "drink", "dish" или "dessert"
+        // получаем переданный товар
+        final CatalogItem item =
+                (CatalogItem) getIntent().getSerializableExtra(EXTRA_ITEM);
+        if (item == null) { finish(); return; }
+        productType = item.getType();
         productId   = item.getId();
 
-        // Toolbar + back
+        // toolbar + back
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         toolbar.setNavigationOnClickListener(v -> onBackPressed());
 
-        // View-элементы товара
-        ImageView iv         = findViewById(R.id.detailImage);
-        TextView tvTitle     = findViewById(R.id.detailTitle);
-        TextView tvRating    = findViewById(R.id.detailRating);
-        TextView tvDesc      = findViewById(R.id.detailDescription);
-        sizes                = findViewById(R.id.sizeToggle);
-        MaterialButton btnAdd= findViewById(R.id.btnAddToCart);
-        tvPrice             = findViewById(R.id.detailPrice);
+        // findViews
+        ImageView iv          = findViewById(R.id.detailImage);
+        TextView tvTitle      = findViewById(R.id.detailTitle);
+        tvRating              = findViewById(R.id.detailRating);
+        TextView tvDesc       = findViewById(R.id.detailDescription);
+        tvSize                = findViewById(R.id.detailSize);
+        tvLabelSize           = findViewById(R.id.labelSize);
+        sizes                 = findViewById(R.id.sizeToggle);
+        MaterialButton btnAdd = findViewById(R.id.btnAddToCart);
+        tvPrice               = findViewById(R.id.detailPrice);
 
-        // Заполняем UI товара
+        reviewSection         = findViewById(R.id.reviewSection);
+        ratingBar             = findViewById(R.id.ratingBar);
+        etComment             = findViewById(R.id.etComment);
+        btnSubmitReview       = findViewById(R.id.btnSubmitReview);
+        rvReviews             = findViewById(R.id.rvReviews);
+
+        // setup RecyclerView for reviews
+        rvReviews.setLayoutManager(new LinearLayoutManager(this));
+        reviewAdapter = new com.example.cfeprjct.Activities.ProductDetailActivity.ReviewAdapter();
+        rvReviews.setAdapter((RecyclerView.Adapter<?>) reviewAdapter);
+
+        // fill UI
         tvTitle.setText(item.getTitle());
-        tvRating.setText(String.valueOf(item.getRating()));
+        tvRating.setText(String.format(Locale.getDefault(), "%.1f", item.getRating()));
         tvDesc.setText(item.getDescription());
         Glide.with(this)
                 .load(item.getImageUrl())
@@ -107,111 +143,56 @@ public class ProductDetailActivity extends AppCompatActivity {
                 .centerCrop()
                 .into(iv);
 
-        // Базовая цена (S)
+        // size vs volume
+        if ("dish".equals(productType) || "dessert".equals(productType)) {
+            tvLabelSize.setVisibility(View.GONE);
+            sizes.setVisibility(View.GONE);
+            int sz = item.getSize();
+            if (sz > 0) {
+                tvSize.setVisibility(View.VISIBLE);
+                tvSize.setText("Вес: " + sz + " г");
+            } else {
+                tvSize.setVisibility(View.GONE);
+            }
+        } else {
+            tvSize.setVisibility(View.GONE);
+            tvLabelSize.setVisibility(View.VISIBLE);
+            sizes.setVisibility(View.VISIBLE);
+        }
+
         basePrice = item.getPrice();
-        tvPrice.setText(String.format("%d ₽", (int) basePrice));
-
-        // Room
-        db = AppDatabase.getInstance(this);
-
-        // Firestore + Auth
+        db        = AppDatabase.getInstance(this);
         firestore = FirebaseFirestore.getInstance();
-        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
-        if (currentUser != null) {
-            userId = currentUser.getUid();
-        } else {
-            userId = null;
-        }
 
-        // --- Инициализация UI отзывов ---
-        ratingBar       = findViewById(R.id.ratingBar);
-        etComment       = findViewById(R.id.etComment);
-        btnSubmitReview = findViewById(R.id.btnSubmitReview);
-        rvReviews       = findViewById(R.id.rvReviews);
+        orderDAO          = db.orderDAO();
+        orderedDrinkDAO   = db.orderedDrinkDAO();
+        orderedDishDAO    = db.orderedDishDAO();
+        orderedDessertDAO = db.orderedDessertDAO();
 
-        rvReviews.setLayoutManager(new LinearLayoutManager(this));
-        reviewAdapter = new ReviewAdapter();
-        rvReviews.setAdapter(reviewAdapter);
+        isLoggedIn = AuthUtils.isLoggedIn(this);
+        userId     = AuthUtils.getLoggedInUserId(this);
 
-        // Показываем или прячем форму отзыва
-        if (userId == null) {
-            ratingBar.setVisibility(View.GONE);
-            etComment.setVisibility(View.GONE);
-            btnSubmitReview.setVisibility(View.GONE);
-        } else {
-            ratingBar.setVisibility(View.VISIBLE);
-            etComment.setVisibility(View.VISIBLE);
-            btnSubmitReview.setVisibility(View.VISIBLE);
-        }
-
-        // Подписываемся на локальные отзывы для этого товара
+        // load reviews, hide/show block
         LiveData<List<Review>> liveReviews;
         switch (productType) {
-            case "drink":
-                liveReviews = db.reviewDAO().getReviewsForDrinkId(productId);
-                break;
-            case "dish":
-                liveReviews = db.reviewDAO().getReviewsForDishId(productId);
-                break;
-            default: // "dessert"
-                liveReviews = db.reviewDAO().getReviewsForDessertId(productId);
+            case "drink":  liveReviews = db.reviewDAO().getReviewsForDrinkId(productId);  break;
+            case "dish":   liveReviews = db.reviewDAO().getReviewsForDishId(productId);   break;
+            default:       liveReviews = db.reviewDAO().getReviewsForDessertId(productId);
         }
-        liveReviews.observe(this, reviews -> reviewAdapter.submitList(reviews));
-
-        // Обработка кнопки «Отправить отзыв»
-        btnSubmitReview.setOnClickListener(v -> {
-            if (userId == null) {
-                Toast.makeText(this,
-                        "Пожалуйста, войдите, чтобы оставлять отзывы",
-                        Toast.LENGTH_SHORT).show();
-                return;
+        liveReviews.observe(this, reviews -> {
+            if (reviews == null || reviews.isEmpty()) {
+                reviewSection.setVisibility(View.GONE);
+            } else {
+                reviewSection.setVisibility(View.VISIBLE);
+                reviewAdapter.submitList(reviews);
+                float sum = 0f;
+                for (Review r : reviews) sum += r.getRating();
+                tvRating.setText(String.format(Locale.getDefault(), "%.1f", sum / reviews.size()));
             }
-            int rating = (int) ratingBar.getRating();
-            String text = etComment.getText().toString().trim();
-            if (rating < 1) {
-                Toast.makeText(this, "Поставьте оценку от 1 до 5", Toast.LENGTH_SHORT).show();
-                return;
-            }
-
-            // Подготавливаем Review
-            Review r = new Review();
-            r.setUserId(userId);
-            r.setRating(rating);
-            r.setText(text);
-            r.setReviewDate(System.currentTimeMillis());
-            if ("drink".equals(productType))   r.setDrinkId(productId);
-            if ("dish".equals(productType))    r.setDishId(productId);
-            if ("dessert".equals(productType)) r.setDessertId(productId);
-
-            // Сохраняем в Room
-            new Thread(() -> db.reviewDAO().insert(r)).start();
-
-            // Пушим в Firestore
-            Map<String,Object> map = new HashMap<>();
-            map.put("userId",     userId);
-            map.put("rating",     rating);
-            map.put("text",       text);
-            map.put("reviewDate", r.getReviewDate());
-            if ("drink".equals(productType))   map.put("drinkId",   productId);
-            if ("dish".equals(productType))    map.put("dishId",    productId);
-            if ("dessert".equals(productType)) map.put("dessertId", productId);
-
-            firestore.collection("reviews")
-                    .add(map)
-                    .addOnSuccessListener(__ -> {
-                        Toast.makeText(this, "Отзыв отправлен", Toast.LENGTH_SHORT).show();
-                        ratingBar.setRating(0);
-                        etComment.setText("");
-                    })
-                    .addOnFailureListener(e ->
-                            Toast.makeText(this, "Ошибка отправки отзыва", Toast.LENGTH_SHORT).show()
-                    );
         });
-        // --- /UI отзывов ---
 
-        // --- Существующая логика выбора размера и цены ---
-        if ("drink".equals(item.getType())) {
-            sizes.setVisibility(View.VISIBLE);
+        // volume sync if drink
+        if ("drink".equals(productType)) {
             new CatalogSync(this).syncVolumes(() -> {
                 List<Volume> vols = db.volumeDAO().getAllVolumes();
                 for (Volume v : vols) {
@@ -223,35 +204,68 @@ public class ProductDetailActivity extends AppCompatActivity {
                 }
                 runOnUiThread(this::configureSizeToggle);
             });
-        } else {
-            sizes.setVisibility(View.GONE);
         }
 
+        // add to cart
         btnAdd.setOnClickListener(v -> {
-            // TODO: добавить в корзину
+            new Thread(() -> {
+                int sizeValue = "drink".equals(productType)
+                        ? selectedVolumeMl
+                        : item.getSize();
+
+                CartItem existing = db.cartItemDao()
+                        .getByProductAndSize(productType, productId, sizeValue);
+
+                if (existing != null) {
+                    int q = Math.min(existing.getQuantity() + 1, 15);
+                    existing.setQuantity(q);
+                    db.cartItemDao().update(existing);
+                } else {
+                    CartItem ci = new CartItem();
+                    ci.setProductType(productType);
+                    ci.setProductId(productId);
+                    ci.setTitle(item.getTitle());
+                    ci.setImageUrl(item.getImageUrl());
+                    ci.setSize(sizeValue);
+                    ci.setUnitPrice(calculatedPrice);
+                    ci.setQuantity(1);
+                    db.cartItemDao().insert(ci);
+                }
+                runOnUiThread(() ->
+                        Toast.makeText(this, "Добавлено в корзину", Toast.LENGTH_SHORT).show()
+                );
+            }).start();
         });
     }
 
     private void configureSizeToggle() {
+        // по умолчанию выбираем S
         sizes.check(R.id.btnSizeS);
+        selectedVolumeMl = mlS;
+        calculatedPrice  = basePrice;
+        tvPrice.setText(String.format("%d ₽", (int) calculatedPrice));
+
         sizes.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
             if (!isChecked) return;
-            float newPrice;
+
             if (checkedId == R.id.btnSizeM) {
-                newPrice = basePrice + 100;
+                selectedVolumeMl = mlM;
+                calculatedPrice  = basePrice + 100;
             } else if (checkedId == R.id.btnSizeL) {
-                newPrice = basePrice + 150;
+                selectedVolumeMl = mlL;
+                calculatedPrice  = basePrice + 150;
             } else {
-                newPrice = basePrice;
+                // сюда зайдёт и btnSizeS
+                selectedVolumeMl = mlS;
+                calculatedPrice  = basePrice;
             }
-            tvPrice.setText(String.format("%d ₽", (int) newPrice));
+
+            tvPrice.setText(String.format("%d ₽", (int) calculatedPrice));
         });
     }
 
-    /** Адаптер для списка отзывов */
-    private static class ReviewAdapter
-            extends ListAdapter<Review, ReviewAdapter.VH> {
 
+    private class ReviewAdapter extends ListAdapter<Review, ReviewAdapter.VH> {
         ReviewAdapter() {
             super(new DiffUtil.ItemCallback<Review>() {
                 @Override public boolean areItemsTheSame(Review a, Review b) {
@@ -264,28 +278,40 @@ public class ProductDetailActivity extends AppCompatActivity {
                 }
             });
         }
-
         @Override
         public VH onCreateViewHolder(ViewGroup parent, int viewType) {
-            View v = LayoutInflater.from(parent.getContext())
-                    .inflate(R.layout.item_review, parent, false);
+            View v = getLayoutInflater().inflate(R.layout.item_review, parent, false);
             return new VH(v);
         }
-
         @Override
-        public void onBindViewHolder(VH holder, int position) {
-            Review r = getItem(position);
-            holder.ratingBar.setRating(r.getRating());
-            holder.tvText.setText(r.getText());
+        public void onBindViewHolder(VH h, int pos) {
+            Review r = getItem(pos);
+            h.ratingBar.setRating(r.getRating());
+            h.tvText.setText(r.getText());
+            h.tvUserName.setText("Аноним");
+            String reviewerId = r.getUserId();
+            if (reviewerId != null && !reviewerId.isEmpty()) {
+                firestore.collection("users")
+                        .document(reviewerId)
+                        .get()
+                        .addOnSuccessListener(doc -> {
+                            if (doc.exists()) {
+                                String first = doc.getString("firstName");
+                                String last  = doc.getString("lastName");
+                                String full = ((first!=null)?first:"") + ((last!=null)?" "+last:"");
+                                h.tvUserName.setText(full.trim().isEmpty()?"Аноним":full);
+                            }
+                        });
+            }
         }
-
-        static class VH extends RecyclerView.ViewHolder {
-            private RatingBar ratingBar;
-            TextView tvText;
-            VH(View itemView) {
-                super(itemView);
-                ratingBar = itemView.findViewById(R.id.itemRatingBar);
-                tvText    = itemView.findViewById(R.id.itemReviewText);
+        class VH extends RecyclerView.ViewHolder {
+            RatingBar ratingBar;
+            TextView tvUserName, tvText;
+            VH(View v) {
+                super(v);
+                tvUserName = v.findViewById(R.id.itemUserName);
+                ratingBar  = v.findViewById(R.id.itemRatingBar);
+                tvText     = v.findViewById(R.id.itemReviewText);
             }
         }
     }
