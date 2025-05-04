@@ -1,5 +1,6 @@
 package com.example.cfeprjct.DAOS;
 
+import androidx.lifecycle.LiveData;
 import androidx.room.Dao;
 import androidx.room.Delete;
 import androidx.room.Insert;
@@ -22,8 +23,11 @@ public interface OrderDAO {
     @Delete
     void deleteOrder(Order order);
 
-    @Query("SELECT * FROM orders WHERE orderId = :orderId")
-    Order getOrderById(int orderId);
+    @Query("SELECT * FROM orders WHERE orderId = :id LIMIT 1")
+    Order getOrderById(int id);
+
+    @Query("SELECT * FROM orders WHERE userId = :uid ORDER BY createdAt DESC")
+    LiveData<List<Order>> getAllByUser(String uid);
 
     @Query("SELECT * FROM orders WHERE userId = :userId")
     List<Order> getOrdersByUserId(String userId);

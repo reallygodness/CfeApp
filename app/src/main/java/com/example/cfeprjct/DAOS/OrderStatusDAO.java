@@ -3,6 +3,7 @@ package com.example.cfeprjct.DAOS;
 import androidx.room.Dao;
 import androidx.room.Delete;
 import androidx.room.Insert;
+import androidx.room.OnConflictStrategy;
 import androidx.room.Query;
 import androidx.room.Update;
 
@@ -12,19 +13,17 @@ import java.util.List;
 
 @Dao
 public interface OrderStatusDAO {
+        /** Вариант с varargs — можно передавать сразу несколько статусов */
+        @Insert(onConflict = OnConflictStrategy.IGNORE)
+        long insert(OrderStatus status);
 
-    @Insert
-    long insertOrderStatus(OrderStatus orderStatus);
+        @Query("SELECT * FROM order_statuses WHERE statusName = :name LIMIT 1")
+        OrderStatus getByName(String name);
 
-    @Update
-    void updateOrderStatus(OrderStatus orderStatus);
+        @Query("SELECT * FROM order_statuses WHERE statusId = :id")
+        OrderStatus getById(int id);
 
-    @Delete
-    void deleteOrderStatus(OrderStatus orderStatus);
+        @Query("SELECT * FROM order_statuses")
+        List<OrderStatus> getAll();
+    }
 
-    @Query("SELECT * FROM order_status WHERE orderStatusId = :id")
-    OrderStatus getOrderStatusById(int id);
-
-    @Query("SELECT * FROM order_status")
-    List<OrderStatus> getAllOrderStatuses();
-}

@@ -95,20 +95,17 @@ public class CatalogSync {
                     List<Dish> list = new ArrayList<>();
                     for (DocumentSnapshot doc : qs) {
                         Dish d = new Dish();
-                        try {
-                            d.setDishId(Integer.parseInt(doc.getId()));
-                        } catch (NumberFormatException e) {
-                            Log.w("CatalogSync", "Неверный формат id блюда: " + doc.getId());
-                            continue;
-                        }
+                        d.setDishId(Integer.parseInt(doc.getId()));
                         d.setName(doc.getString("name"));
                         d.setDescription(doc.getString("description"));
                         d.setImageUrl(doc.getString("imageUrl"));
+
+                        Long sz = doc.getLong("size"); // ← читаем size
+                        d.setSize(sz != null ? sz.intValue() : 0);
                         list.add(d);
                     }
                     new Thread(() -> {
                         db.dishDAO().insertAll(list);
-                        Log.d("CatalogSync", "Room: записано блюд = " + list.size());
                         cb.onComplete();
                     }).start();
                 })
@@ -126,20 +123,16 @@ public class CatalogSync {
                     List<Dessert> list = new ArrayList<>();
                     for (DocumentSnapshot doc : qs) {
                         Dessert d = new Dessert();
-                        try {
-                            d.setDessertId(Integer.parseInt(doc.getId()));
-                        } catch (NumberFormatException e) {
-                            Log.w("CatalogSync", "Неверный формат id десерта: " + doc.getId());
-                            continue;
-                        }
+                        d.setDessertId(Integer.parseInt(doc.getId()));
                         d.setName(doc.getString("name"));
                         d.setDescription(doc.getString("description"));
                         d.setImageUrl(doc.getString("imageUrl"));
+                        Long sz = doc.getLong("size");
+                        d.setSize(sz != null ? sz.intValue() : 0);
                         list.add(d);
                     }
                     new Thread(() -> {
                         db.dessertDAO().insertAll(list);
-                        Log.d("CatalogSync", "Room: записано десертов = " + list.size());
                         cb.onComplete();
                     }).start();
                 })

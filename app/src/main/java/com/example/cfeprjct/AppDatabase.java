@@ -1,6 +1,7 @@
 package com.example.cfeprjct;
 
 import android.content.Context;
+import android.database.Cursor;
 
 import androidx.annotation.NonNull;
 import androidx.room.Database;
@@ -10,6 +11,7 @@ import androidx.room.migration.Migration;
 import androidx.sqlite.db.SupportSQLiteDatabase;
 
 import com.example.cfeprjct.DAOS.AddressDAO;
+import com.example.cfeprjct.DAOS.CartItemDAO;
 import com.example.cfeprjct.DAOS.CourierDAO;
 import com.example.cfeprjct.DAOS.DeliveryDAO;
 import com.example.cfeprjct.DAOS.DessertDAO;
@@ -27,19 +29,20 @@ import com.example.cfeprjct.DAOS.PriceListDAO;
 import com.example.cfeprjct.DAOS.ReviewDAO;
 import com.example.cfeprjct.DAOS.VolumeDAO;
 import com.example.cfeprjct.Entities.Address;
+import com.example.cfeprjct.Entities.CartItem;
 import com.example.cfeprjct.Entities.Courier;
 import com.example.cfeprjct.Entities.Delivery;
 import com.example.cfeprjct.Entities.FavoriteDrink;
 import com.example.cfeprjct.Entities.Order;
+import com.example.cfeprjct.Entities.OrderedDessert;
+import com.example.cfeprjct.Entities.OrderedDish;
 import com.example.cfeprjct.Entities.OrderedDrink;
+import com.example.cfeprjct.Entities.OrderStatus;
 import com.example.cfeprjct.Entities.Dessert;
 import com.example.cfeprjct.Entities.Dish;
 import com.example.cfeprjct.Entities.Drink;
 import com.example.cfeprjct.Entities.DrinkIngredient;
 import com.example.cfeprjct.Entities.Ingredient;
-import com.example.cfeprjct.Entities.OrderStatus;
-import com.example.cfeprjct.Entities.OrderedDessert;
-import com.example.cfeprjct.Entities.OrderedDish;
 import com.example.cfeprjct.Entities.PriceList;
 import com.example.cfeprjct.Entities.Review;
 import com.example.cfeprjct.Entities.Volume;
@@ -64,15 +67,17 @@ import com.example.cfeprjct.User;
                 Dish.class,
                 OrderedDish.class,
                 Dessert.class,
-                OrderedDessert.class
+                OrderedDessert.class,
+                CartItem.class
         },
-        version = 9,
+        version = 13,
         exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
 
     private static AppDatabase instance;
 
+    public abstract CartItemDAO cartItemDao();
     public abstract UserDAO userDAO();
     public abstract AddressDAO addressDAO();
     public abstract DeliveryDAO deliveryDAO();
@@ -92,7 +97,7 @@ public abstract class AppDatabase extends RoomDatabase {
     public abstract DessertDAO dessertDAO();
     public abstract OrderedDessertDAO orderedDessertDAO();
 
-    /** Миграция 4 → 5: пользователь (ваш старый код) */
+    /** Миграция 4 → 5 */
     static final Migration MIGRATION_4_5 = new Migration(4, 5) {
         @Override public void migrate(@NonNull SupportSQLiteDatabase db) {
             db.execSQL("CREATE TABLE IF NOT EXISTS `users_new` (" +
@@ -108,21 +113,21 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
-    /** Миграция 5 → 6: создаём все каталожные таблицы (ваш старый код) */
+    /** Миграция 5 → 6 */
     static final Migration MIGRATION_5_6 = new Migration(5, 6) {
         @Override public void migrate(@NonNull SupportSQLiteDatabase db) {
             // … ваш SQL для price_list, Address, Order, Delivery, OrderedDrink, и т.д.
         }
     };
 
-    /** Миграция 6 → 7: добавляем imageUrl в drinks */
+    /** Миграция 6 → 7 */
     static final Migration MIGRATION_6_7 = new Migration(6, 7) {
         @Override public void migrate(@NonNull SupportSQLiteDatabase db) {
             db.execSQL("ALTER TABLE `drinks` ADD COLUMN `imageUrl` TEXT");
         }
     };
 
-    /** Миграция 7 → 8: добавляем imageUrl в dishes и desserts */
+    /** Миграция 7 → 8 */
     static final Migration MIGRATION_7_8 = new Migration(7, 8) {
         @Override public void migrate(@NonNull SupportSQLiteDatabase db) {
             db.execSQL("ALTER TABLE `dishes` ADD COLUMN `imageUrl` TEXT");
@@ -130,24 +135,158 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
+    /** Миграция 8 → 9 */
     static final Migration MIGRATION_8_9 = new Migration(8, 9) {
-        @Override
-        public void migrate(@NonNull SupportSQLiteDatabase db) {
-            // Переименовываем старую таблицу
+        @Override public void migrate(@NonNull SupportSQLiteDatabase db) {
             db.execSQL("ALTER TABLE volumes RENAME TO volumes_old");
-
-            // Создаем новую таблицу volumes с нужными полями
             db.execSQL("CREATE TABLE IF NOT EXISTS volumes (" +
                     "volumeId INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
                     "size TEXT, " +
                     "ml INTEGER NOT NULL)");
-
-            // Переносим данные из старой таблицы
             db.execSQL("INSERT INTO volumes (volumeId, size, ml) " +
                     "SELECT volumeId, volume, 0 FROM volumes_old");
-
-            // Удаляем временную таблицу
             db.execSQL("DROP TABLE volumes_old");
+        }
+    };
+
+    /** Миграция 9 → 10 */
+    static final Migration MIGRATION_9_10 = new Migration(9, 10) {
+        @Override public void migrate(@NonNull SupportSQLiteDatabase db) {
+            db.execSQL("ALTER TABLE `dishes`   ADD COLUMN `size` INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("ALTER TABLE `desserts` ADD COLUMN `size` INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+
+    /** Миграция 10 → 11: пересоздание orders и создание cart_items */
+    static final Migration MIGRATION_10_11 = new Migration(10, 11) {
+        @Override public void migrate(@NonNull SupportSQLiteDatabase db) {
+            // Переименование старой orders
+            db.execSQL("ALTER TABLE `orders` RENAME TO `orders_old`");
+            // Новая orders
+            db.execSQL("CREATE TABLE IF NOT EXISTS `orders` (" +
+                    "`orderId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`userId` TEXT, " +
+                    "`totalPrice` REAL NOT NULL, " +
+                    "`statusId` INTEGER NOT NULL, " +
+                    "`createdAt` INTEGER NOT NULL, " +
+                    "FOREIGN KEY(`statusId`) REFERENCES `order_statuses`(`statusId`) " +
+                    "ON UPDATE CASCADE ON DELETE RESTRICT" +
+                    ")");
+            db.execSQL("INSERT INTO `orders` (orderId, userId, totalPrice, statusId, createdAt) " +
+                    "SELECT orderId, userId, totalAmount, orderStatusId, orderDate FROM orders_old");
+            db.execSQL("DROP TABLE `orders_old`");
+
+            // Справочник статусов
+            db.execSQL("CREATE TABLE IF NOT EXISTS `order_statuses` (" +
+                    "`statusId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`statusName` TEXT NOT NULL" +
+                    ")");
+            db.execSQL("INSERT INTO `order_statuses` (statusName) VALUES " +
+                    "('В готовке'),('В доставке'),('Доставлен')");
+
+            // Таблица корзины
+            db.execSQL("CREATE TABLE IF NOT EXISTS `cart_items` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`productType` TEXT, " +
+                    "`productId` INTEGER NOT NULL, " +
+                    "`title` TEXT, " +
+                    "`imageUrl` TEXT, " +
+                    "`size` INTEGER NOT NULL, " +
+                    "`unitPrice` REAL NOT NULL, " +
+                    "`quantity` INTEGER NOT NULL" +
+                    ")");
+        }
+    };
+
+    /** Миграция 11 → 12: добавляем quantity в ordered_* (если нет) */
+    static final Migration MIGRATION_11_12 = new Migration(11, 12) {
+        @Override public void migrate(@NonNull SupportSQLiteDatabase db) {
+            addColumnIfNotExists(db, "ordered_drinks",   "quantity", "INTEGER NOT NULL DEFAULT 1");
+            addColumnIfNotExists(db, "ordered_dishes",   "quantity", "INTEGER NOT NULL DEFAULT 1");
+            addColumnIfNotExists(db, "ordered_desserts", "quantity", "INTEGER NOT NULL DEFAULT 1");
+        }
+        private void addColumnIfNotExists(SupportSQLiteDatabase db,
+                                          String table,
+                                          String column,
+                                          String definition) {
+            try (Cursor cursor = db.query("PRAGMA table_info(`" + table + "`)")) {
+                boolean found = false;
+                int nameIdx  = cursor.getColumnIndex("name");
+                while (cursor.moveToNext()) {
+                    if (nameIdx >= 0 && column.equals(cursor.getString(nameIdx))) {
+                        found = true; break;
+                    }
+                }
+                if (!found) {
+                    db.execSQL("ALTER TABLE `" + table + "` " +
+                            "ADD COLUMN `" + column + "` " + definition);
+                }
+            }
+        }
+    };
+
+    /** Миграция 12 → 13: полное пересоздание справочника и позиций, а также orders с дефолтным статусом */
+    static final Migration MIGRATION_12_13 = new Migration(12, 13) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            // 1) Справочник статусов: удаляем старый, создаём новый с statusName
+            db.execSQL("DROP TABLE IF EXISTS `order_statuses`");
+            db.execSQL("CREATE TABLE IF NOT EXISTS `order_statuses` (" +
+                    "`statusId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`statusName` TEXT NOT NULL" +
+                    ")");
+            db.execSQL("INSERT INTO `order_statuses` (statusName) VALUES " +
+                    "('В готовке'),('В доставке'),('Доставлен')");
+
+            // 2) Позиции заказов: сбрасываем и пересоздаём
+            db.execSQL("DROP TABLE IF EXISTS `ordered_drinks`");
+            db.execSQL("CREATE TABLE IF NOT EXISTS `ordered_drinks` (" +
+                    "`orderedDrinkId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`orderId` INTEGER NOT NULL, " +
+                    "`drinkId` INTEGER NOT NULL, " +
+                    "`quantity` INTEGER NOT NULL, " +
+                    "FOREIGN KEY(`orderId`) REFERENCES `orders`(`orderId`) " +
+                    "ON UPDATE CASCADE ON DELETE CASCADE" +
+                    ")");
+
+            db.execSQL("DROP TABLE IF EXISTS `ordered_dishes`");
+            db.execSQL("CREATE TABLE IF NOT EXISTS `ordered_dishes` (" +
+                    "`orderedDishId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`orderId` INTEGER NOT NULL, " +
+                    "`dishId` INTEGER NOT NULL, " +
+                    "`quantity` INTEGER NOT NULL, " +
+                    "FOREIGN KEY(`orderId`) REFERENCES `orders`(`orderId`) " +
+                    "ON UPDATE CASCADE ON DELETE CASCADE" +
+                    ")");
+
+            db.execSQL("DROP TABLE IF EXISTS `ordered_desserts`");
+            db.execSQL("CREATE TABLE IF NOT EXISTS `ordered_desserts` (" +
+                    "`orderedDessertId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`orderId` INTEGER NOT NULL, " +
+                    "`dessertId` INTEGER NOT NULL, " +
+                    "`quantity` INTEGER NOT NULL, " +
+                    "FOREIGN KEY(`orderId`) REFERENCES `orders`(`orderId`) " +
+                    "ON UPDATE CASCADE ON DELETE CASCADE" +
+                    ")");
+
+            // 3) Пересоздаём таблицу orders, но перед этим временно её переименовываем
+            db.execSQL("ALTER TABLE `orders` RENAME TO `orders_old`");
+            db.execSQL("CREATE TABLE IF NOT EXISTS `orders` (" +
+                    "`orderId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`userId` TEXT, " +
+                    "`createdAt` INTEGER NOT NULL, " +
+                    "`totalPrice` REAL NOT NULL, " +
+                    "`statusId` INTEGER NOT NULL DEFAULT 1, " +
+                    "FOREIGN KEY(`statusId`) REFERENCES `order_statuses`(`statusId`) " +
+                    "ON UPDATE CASCADE ON DELETE RESTRICT" +
+                    ")");
+
+            // 4) Копируем данные из orders_old, теперь с правильными именами колонок
+            db.execSQL("INSERT INTO `orders` (orderId, userId, createdAt, totalPrice, statusId) " +
+                    "SELECT orderId, userId, createdAt, totalPrice, statusId FROM orders_old");
+
+            // 5) Удаляем временную таблицу
+            db.execSQL("DROP TABLE orders_old");
         }
     };
 
@@ -164,7 +303,11 @@ public abstract class AppDatabase extends RoomDatabase {
                             MIGRATION_5_6,
                             MIGRATION_6_7,
                             MIGRATION_7_8,
-                            MIGRATION_8_9
+                            MIGRATION_8_9,
+                            MIGRATION_9_10,
+                            MIGRATION_10_11,
+                            MIGRATION_11_12,
+                            MIGRATION_12_13
                     )
                     .build();
         }

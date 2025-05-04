@@ -43,10 +43,19 @@ public class CatalogAdapter extends RecyclerView.Adapter<CatalogAdapter.ViewHold
         holder.titleTextView.setText(item.getTitle());
         holder.descriptionTextView.setText(item.getDescription());
 
-        // Цена (int)
-        holder.priceTextView.setText(item.getPrice() + " ₽");
+        // Цена
+        holder.priceTextView.setText(item.getPrice() + " ₽");
 
-        // Картинка через Glide, centerCrop чтобы хорошо вписывалось
+        // Размер (для блюд и десертов показываем в граммах)
+        if (("dish".equals(item.getType()) || "dessert".equals(item.getType()))
+                && item.getSize() > 0) {
+            holder.sizeTextView.setVisibility(View.VISIBLE);
+            holder.sizeTextView.setText(item.getSize() + " г");
+        } else {
+            holder.sizeTextView.setVisibility(View.GONE);
+        }
+
+        // Картинка через Glide
         String url = item.getImageUrl();
         if (url != null && !url.isEmpty()) {
             Glide.with(holder.imageView.getContext())
@@ -57,12 +66,11 @@ public class CatalogAdapter extends RecyclerView.Adapter<CatalogAdapter.ViewHold
         } else {
             holder.imageView.setImageResource(R.drawable.ic_placeholder);
         }
-        // Звёздочки рейтинга
+
+        // Рейтинг в виде звёздочек
         holder.ratingContainer.removeAllViews();
-        // 1) получаем рейтинг и защищаемся от null
         Float ratingObj = item.getRating();
-        int fullStars = (ratingObj != null) ? ratingObj.intValue() : 0;
-        // 2) добавляем звёздочки
+        int fullStars = ratingObj != null ? ratingObj.intValue() : 0;
         for (int i = 0; i < fullStars; i++) {
             ImageView star = new ImageView(holder.ratingContainer.getContext());
             star.setImageResource(R.drawable.ic_star);
@@ -74,13 +82,13 @@ public class CatalogAdapter extends RecyclerView.Adapter<CatalogAdapter.ViewHold
             holder.ratingContainer.addView(star);
         }
 
+        // Клик по карточке
         holder.itemView.setOnClickListener(v -> {
             Context ctx = v.getContext();
             Intent intent = new Intent(ctx, ProductDetailActivity.class);
-            intent.putExtra(ProductDetailActivity.EXTRA_ITEM, items.get(position));
+            intent.putExtra(ProductDetailActivity.EXTRA_ITEM, item);
             ctx.startActivity(intent);
         });
-
 
         // Кнопка “+”
         holder.addButton.setOnClickListener(v -> {
@@ -94,8 +102,12 @@ public class CatalogAdapter extends RecyclerView.Adapter<CatalogAdapter.ViewHold
     }
 
     static class ViewHolder extends RecyclerView.ViewHolder {
-        TextView    titleTextView, descriptionTextView, priceTextView;
-        ImageView   imageView, addButton;
+        TextView    titleTextView,
+                descriptionTextView,
+                priceTextView,
+                sizeTextView;
+        ImageView   imageView,
+                addButton;
         LinearLayout ratingContainer;
 
         ViewHolder(@NonNull View itemView) {
@@ -103,6 +115,7 @@ public class CatalogAdapter extends RecyclerView.Adapter<CatalogAdapter.ViewHold
             titleTextView       = itemView.findViewById(R.id.itemTitleTextView);
             descriptionTextView = itemView.findViewById(R.id.itemDescriptionTextView);
             priceTextView       = itemView.findViewById(R.id.itemPriceTextView);
+            sizeTextView        = itemView.findViewById(R.id.itemSize);
             imageView           = itemView.findViewById(R.id.itemImageView);
             addButton           = itemView.findViewById(R.id.addButton);
             ratingContainer     = itemView.findViewById(R.id.ratingContainer);
