@@ -65,30 +65,26 @@ public class CartFragment extends Fragment {
 
     private CartAdapter cartAdapter;
     private RecyclerView rvCart;
-    private TextView tvTotal;
-    private TextView tvAddress;
+    private TextView tvTotal, tvAddress;
     private ImageView btnEditAddress;
     private MaterialButton btnCheckout;
 
-    @Nullable
-    @Override
-    public View onCreateView(
-            @NonNull LayoutInflater inflater,
-            @Nullable ViewGroup container,
-            @Nullable Bundle savedInstanceState
-    ) {
+    @Nullable @Override
+    public View onCreateView(@NonNull LayoutInflater inflater,
+                             @Nullable ViewGroup container,
+                             @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_cart, container, false);
 
         // 1) Инициализируем БД, DAO и сервисы
         db = AppDatabase.getInstance(requireContext());
-        addressDAO         = db.addressDAO();
-        orderDAO           = db.orderDAO();
-        orderedDrinkDAO    = db.orderedDrinkDAO();
-        orderedDishDAO     = db.orderedDishDAO();
-        orderedDessertDAO  = db.orderedDessertDAO();
-        orderStatusDAO     = db.orderStatusDAO();
-        firestore          = FirebaseFirestore.getInstance();
-        fusedLocationClient= LocationServices.getFusedLocationProviderClient(requireContext());
+        addressDAO        = db.addressDAO();
+        orderDAO          = db.orderDAO();
+        orderedDrinkDAO   = db.orderedDrinkDAO();
+        orderedDishDAO    = db.orderedDishDAO();
+        orderedDessertDAO = db.orderedDessertDAO();
+        orderStatusDAO    = db.orderStatusDAO();
+        firestore         = FirebaseFirestore.getInstance();
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireContext());
 
         // 2) Привязываем view
         rvCart          = view.findViewById(R.id.rvCart);
@@ -102,17 +98,17 @@ public class CartFragment extends Fragment {
         cartAdapter = new CartAdapter(db.cartItemDao());
         rvCart.setAdapter(cartAdapter);
 
-        // 4) Адрес (копипаст из CatalogFragment)
+        // 4) Адрес (из каталога)
         String userId = AuthUtils.getLoggedInUserId(requireContext());
         if (userId != null) {
             new Thread(() -> {
                 Address local = addressDAO.getAddressByUserId(userId);
                 if (local != null) {
-                    String formatted = local.getCity()
+                    String fmt = local.getCity()
                             + ", " + local.getStreet()
                             + " " + local.getHouse()
                             + (local.getApartment().isEmpty() ? "" : ", кв. " + local.getApartment());
-                    requireActivity().runOnUiThread(() -> tvAddress.setText(formatted));
+                    requireActivity().runOnUiThread(() -> tvAddress.setText(fmt));
                 } else {
                     fetchAddressFromFirestore(userId);
                 }
@@ -120,6 +116,7 @@ public class CartFragment extends Fragment {
         } else {
             tvAddress.setText("Введите адрес");
         }
+
         View.OnClickListener addrClick = v -> {
             if (ContextCompat.checkSelfPermission(requireContext(),
                     Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
@@ -143,14 +140,10 @@ public class CartFragment extends Fragment {
         live.observe(getViewLifecycleOwner(), items -> {
             cartAdapter.submitList(items);
             int sum = 0;
-            for (CartItem ci : items) {
-                sum += ci.getQuantity() * ci.getUnitPrice();
-            }
+            for (CartItem ci : items) sum += ci.getQuantity() * ci.getUnitPrice();
             if (sum > 0) {
-                tvTotal.setText(String.format(
-                        Locale.getDefault(),
-                        "Итог: %d ₽ (доставка 100 ₽)", sum + 100
-                ));
+                tvTotal.setText(String.format(Locale.getDefault(),
+                        "Итог: %d ₽ (доставка 100 ₽)", sum + 100));
                 btnCheckout.setEnabled(true);
             } else {
                 tvTotal.setText("Итог: 0 ₽");
@@ -158,27 +151,19 @@ public class CartFragment extends Fragment {
             }
         });
 
-        // 6) Оформление заказа
-        // 6) Оформление заказа
+        // 6) Оформление заказа с переносом size
         btnCheckout.setOnClickListener(v -> {
             new Thread(() -> {
                 List<CartItem> items = db.cartItemDao().getAllSync();
                 if (items.isEmpty()) return;
 
-                // текущее время
                 long now = System.currentTimeMillis();
-                // статус «В готовке»
                 OrderStatus cook = orderStatusDAO.getByName("В готовке");
-                int cookId = (cook != null ? cook.getStatusId() : 1);
+                int cookId = cook != null ? cook.getStatusId() : 1;
 
-                // считаем сумму + доставка
-                float total = 0f;
-                for (CartItem ci : items) {
-                    total += ci.getQuantity() * ci.getUnitPrice();
-                }
-                total += 100f;
+                float total = 100f; // 100₽ за доставку
+                for (CartItem ci : items) total += ci.getQuantity() * ci.getUnitPrice();
 
-                // создаём Order
                 Order order = new Order();
                 order.setUserId(userId);
                 order.setCreatedAt(now);
@@ -187,7 +172,7 @@ public class CartFragment extends Fragment {
                 long newId = orderDAO.insertOrder(order);
                 int orderId = (int)newId;
 
-                // каждый CartItem превращаем в OrderedXXX
+                // Переносим каждую позицию из корзины — теперь с size
                 for (CartItem ci : items) {
                     switch (ci.getProductType()) {
                         case "drink":
@@ -195,6 +180,7 @@ public class CartFragment extends Fragment {
                             od.setOrderId(orderId);
                             od.setDrinkId(ci.getProductId());
                             od.setQuantity(ci.getQuantity());
+                            od.setSize(ci.getSize());
                             orderedDrinkDAO.insert(od);
                             break;
                         case "dish":
@@ -202,6 +188,7 @@ public class CartFragment extends Fragment {
                             od2.setOrderId(orderId);
                             od2.setDishId(ci.getProductId());
                             od2.setQuantity(ci.getQuantity());
+                            od2.setSize(ci.getSize());
                             orderedDishDAO.insert(od2);
                             break;
                         default:
@@ -209,22 +196,23 @@ public class CartFragment extends Fragment {
                             od3.setOrderId(orderId);
                             od3.setDessertId(ci.getProductId());
                             od3.setQuantity(ci.getQuantity());
+                            od3.setSize(ci.getSize());
                             orderedDessertDAO.insert(od3);
                             break;
                     }
                 }
 
-                // очистить корзину
+                // Очищаем корзину
                 db.cartItemDao().clearAll();
 
-                // на UI: тост + переключение на «Заказы» + планировщик смены статуса
-                new Handler(getContext().getMainLooper()).post(() -> {
+                // На UI: тост и переключение на "Заказы"
+                new Handler(requireActivity().getMainLooper()).post(() -> {
                     Toast.makeText(requireContext(), "Заказ оформлен", Toast.LENGTH_SHORT).show();
                     ((MainActivity)requireActivity())
                             .getBottomNavigationView()
                             .setSelectedItemId(R.id.nav_orders);
 
-                    // через 20 минут перевести в «Доставлен»
+                    // Через 20 мин переводим в "Доставлен"
                     new Handler().postDelayed(() -> {
                         Order o = orderDAO.getOrderById(orderId);
                         if (o != null && o.getStatusId() == cookId) {
@@ -234,7 +222,7 @@ public class CartFragment extends Fragment {
                                 orderDAO.updateOrder(o);
                             }
                         }
-                    }, 20 * 60 * 1000);
+                    }, 20 * 60_000);
                 });
 
             }).start();

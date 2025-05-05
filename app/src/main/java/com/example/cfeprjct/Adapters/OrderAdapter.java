@@ -17,9 +17,6 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.bumptech.glide.Glide;
 import com.example.cfeprjct.AppDatabase;
 import com.example.cfeprjct.Entities.CartItem;
-import com.example.cfeprjct.Entities.Dessert;
-import com.example.cfeprjct.Entities.Dish;
-import com.example.cfeprjct.Entities.Drink;
 import com.example.cfeprjct.Entities.Order;
 import com.example.cfeprjct.Entities.OrderStatus;
 import com.example.cfeprjct.Entities.OrderedDessert;
@@ -40,20 +37,18 @@ public class OrderAdapter extends ListAdapter<Order, OrderAdapter.VH> {
 
     public OrderAdapter(Context ctx, List<OrderStatus> statuses) {
         super(new DiffUtil.ItemCallback<Order>() {
-            @Override
-            public boolean areItemsTheSame(@NonNull Order a, @NonNull Order b) {
+            @Override public boolean areItemsTheSame(@NonNull Order a, @NonNull Order b) {
                 return a.getOrderId() == b.getOrderId();
             }
-            @Override
-            public boolean areContentsTheSame(@NonNull Order a, @NonNull Order b) {
+            @Override public boolean areContentsTheSame(@NonNull Order a, @NonNull Order b) {
                 return a.getCreatedAt() == b.getCreatedAt()
                         && a.getTotalPrice() == b.getTotalPrice()
                         && a.getStatusId() == b.getStatusId();
             }
         });
-        this.inflater  = LayoutInflater.from(ctx);
-        this.db        = AppDatabase.getInstance(ctx);
-        this.statuses  = statuses;
+        this.inflater = LayoutInflater.from(ctx);
+        this.db       = AppDatabase.getInstance(ctx);
+        this.statuses = statuses;
     }
 
     @NonNull @Override
@@ -65,35 +60,37 @@ public class OrderAdapter extends ListAdapter<Order, OrderAdapter.VH> {
     @Override
     public void onBindViewHolder(@NonNull VH h, int pos) {
         Order o = getItem(pos);
-
-        // Шапка заказа
         h.tvOrderId.setText("Заказ №" + o.getOrderId());
-        h.tvDate   .setText(formatDate(o.getCreatedAt()));
+        h.tvDate   .setText(DateFormat.format("dd.MM.yy HH:mm", new Date(o.getCreatedAt())));
         h.tvStatus .setText(statuses.get(o.getStatusId() - 1).getStatusName());
-        h.tvPayment.setText("К оплате курьеру: " + (int)o.getTotalPrice() + " ₽");
+        // Сумма к оплате
+        h.tvPayment.setText(
+                "К оплате курьеру: " + (int)o.getTotalPrice() + " ₽"
+        );
 
-        // Очищаем контейнер товаров
+        // Убираем предыдущие товары
         h.itemsContainer.removeAllViews();
 
-        // Загружаем позиции заказа в фоне и рендерим их
+        // Загружаем позиции заказа в фоне
         Executors.newSingleThreadExecutor().execute(() -> {
             List<CartItem> items = new ArrayList<>();
 
-            // Напитки
+            // напитки
             for (OrderedDrink od : db.orderedDrinkDAO().getByOrderId(o.getOrderId())) {
-                Drink d = db.drinkDAO().getDrinkById(od.getDrinkId());
+                var d = db.drinkDAO().getById(od.getDrinkId());
                 CartItem ci = new CartItem();
                 ci.setProductType("drink");
                 ci.setTitle(d.getName());
                 ci.setImageUrl(d.getImageUrl());
                 ci.setQuantity(od.getQuantity());
                 ci.setUnitPrice(db.priceListDAO().getLatestPriceForDrink(d.getDrinkId()));
-                ci.setSize(od.getSize());
+                ci.setSize(od.getQuantity() > 0 ? od.getQuantity() * od.getQuantity() : 0); // если нужен вес
+                ci.setSize(od.getSize()); // если в OrderedDrink есть поле size
                 items.add(ci);
             }
-            // Блюда
+            // блюда
             for (OrderedDish od : db.orderedDishDAO().getByOrderId(o.getOrderId())) {
-                Dish d = db.dishDAO().getDishById(od.getDishId());
+                var d = db.dishDAO().getById(od.getDishId());
                 CartItem ci = new CartItem();
                 ci.setProductType("dish");
                 ci.setTitle(d.getName());
@@ -103,9 +100,9 @@ public class OrderAdapter extends ListAdapter<Order, OrderAdapter.VH> {
                 ci.setSize(d.getSize());
                 items.add(ci);
             }
-            // Десерты
+            // десерты
             for (OrderedDessert od : db.orderedDessertDAO().getByOrderId(o.getOrderId())) {
-                Dessert d = db.dessertDAO().getById(od.getDessertId());
+                var d = db.dessertDAO().getById(od.getDessertId());
                 CartItem ci = new CartItem();
                 ci.setProductType("dessert");
                 ci.setTitle(d.getName());
@@ -116,10 +113,19 @@ public class OrderAdapter extends ListAdapter<Order, OrderAdapter.VH> {
                 items.add(ci);
             }
 
-            // Добавляем views в UI-потоке
+            // Отрисовываем в UI-потоке
             h.itemView.post(() -> {
                 for (CartItem ci : items) {
                     View iv = inflater.inflate(R.layout.item_cart, h.itemsContainer, false);
+
+                    // сразу скрываем контролы количества и удаления
+                    View btnDec    = iv.findViewById(R.id.btnDecrease);
+                    View btnInc    = iv.findViewById(R.id.btnIncrease);
+                    View btnRemove = iv.findViewById(R.id.btnRemove);
+                    if (btnDec    != null) btnDec.setVisibility(View.GONE);
+                    if (btnInc    != null) btnInc.setVisibility(View.GONE);
+                    if (btnRemove != null) btnRemove.setVisibility(View.GONE);
+
                     ImageView img    = iv.findViewById(R.id.itemImage);
                     TextView  title  = iv.findViewById(R.id.itemTitle);
                     TextView  size   = iv.findViewById(R.id.itemSize);
@@ -128,13 +134,13 @@ public class OrderAdapter extends ListAdapter<Order, OrderAdapter.VH> {
 
                     title.setText(ci.getTitle());
                     qty  .setText("×" + ci.getQuantity());
-                    price.setText((int)(ci.getUnitPrice()*ci.getQuantity()) + " ₽");
+                    price.setText((int)(ci.getUnitPrice() * ci.getQuantity()) + " ₽");
 
-                    // Отображаем объём/вес
                     if (ci.getSize() > 0) {
                         size.setVisibility(View.VISIBLE);
-                        String unit = ci.getProductType().equals("drink") ? " ml" : " г";
-                        size.setText(ci.getSize() + unit);
+                        size.setText(ci.getSize()
+                                + (ci.getProductType().equals("drink") ? " ml" : " г")
+                        );
                     } else {
                         size.setVisibility(View.GONE);
                     }
@@ -152,20 +158,15 @@ public class OrderAdapter extends ListAdapter<Order, OrderAdapter.VH> {
     }
 
     static class VH extends RecyclerView.ViewHolder {
-        TextView      tvOrderId, tvDate, tvStatus, tvPayment;
-        LinearLayout  itemsContainer;
-
+        TextView     tvOrderId, tvDate, tvStatus, tvPayment;
+        LinearLayout itemsContainer;
         VH(View v) {
             super(v);
             tvOrderId      = v.findViewById(R.id.tvOrderId);
             tvDate         = v.findViewById(R.id.tvOrderDate);
             tvStatus       = v.findViewById(R.id.tvOrderStatus);
-            itemsContainer = v.findViewById(R.id.itemsContainer);
             tvPayment      = v.findViewById(R.id.tvOrderPayment);
+            itemsContainer = v.findViewById(R.id.itemsContainer);
         }
-    }
-
-    private String formatDate(long millis) {
-        return DateFormat.format("dd.MM.yy HH:mm", new Date(millis)).toString();
     }
 }
