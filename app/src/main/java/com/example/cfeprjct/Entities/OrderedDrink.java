@@ -25,7 +25,7 @@ public class OrderedDrink {
     private int drinkId;
     private int quantity;
 
-    private int size; // ← здесь храним выбранный объём в мл
+    private int size; // здесь храним выбранный объём в мл
 
     public int getOrderedDrinkId() { return orderedDrinkId; }
     public void setOrderedDrinkId(int id) { this.orderedDrinkId = id; }
