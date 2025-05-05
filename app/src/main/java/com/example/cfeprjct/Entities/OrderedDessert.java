@@ -24,6 +24,8 @@ public class OrderedDessert {
     private int dessertId;
     private int quantity;
 
+    private int size; // вес в граммах
+
     public int getOrderedDessertId() { return orderedDessertId; }
     public void setOrderedDessertId(int id) { this.orderedDessertId = id; }
 
@@ -35,4 +37,7 @@ public class OrderedDessert {
 
     public int getQuantity() { return quantity; }
     public void setQuantity(int quantity) { this.quantity = quantity; }
+
+    public int getSize() { return size; }
+    public void setSize(int size) { this.size = size; }
 }

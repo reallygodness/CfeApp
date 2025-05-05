@@ -23,8 +23,8 @@ public interface DessertDAO {
     @Delete
     void deleteDessert(Dessert dessert);
 
-    @Query("SELECT * FROM desserts WHERE dessertId = :id")
-    Dessert getDessertById(int id);
+    @Query("SELECT * FROM desserts WHERE dessertId = :dessertId LIMIT 1")
+    Dessert getById(int dessertId);
 
     @Query("SELECT * FROM desserts")
     List<Dessert> getAllDesserts();

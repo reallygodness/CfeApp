@@ -20,4 +20,7 @@ public interface VolumeDAO {
     // при необходимости — поиск по id
     @Query("SELECT * FROM volumes WHERE volumeId = :id")
     Volume getById(int id);
+
+    @Query("SELECT * FROM volumes WHERE size = :sizeLabel LIMIT 1")
+    Volume getBySize(String sizeLabel);
 }

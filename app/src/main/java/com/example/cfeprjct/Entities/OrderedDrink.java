@@ -1,6 +1,7 @@
 // OrderedDrink.java
 package com.example.cfeprjct.Entities;
 
+import androidx.annotation.NonNull;
 import androidx.room.Entity;
 import androidx.room.ForeignKey;
 import androidx.room.PrimaryKey;
@@ -24,6 +25,8 @@ public class OrderedDrink {
     private int drinkId;
     private int quantity;
 
+    private int size; // ← здесь храним выбранный объём в мл
+
     public int getOrderedDrinkId() { return orderedDrinkId; }
     public void setOrderedDrinkId(int id) { this.orderedDrinkId = id; }
 
@@ -35,4 +38,7 @@ public class OrderedDrink {
 
     public int getQuantity() { return quantity; }
     public void setQuantity(int quantity) { this.quantity = quantity; }
+
+    public int getSize() { return size; }
+    public void setSize(int size) { this.size = size; }
 }

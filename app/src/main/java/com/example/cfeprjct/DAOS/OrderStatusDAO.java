@@ -13,6 +13,8 @@ import java.util.List;
 
 @Dao
 public interface OrderStatusDAO {
+        @Query("SELECT * FROM order_statuses")
+        List<OrderStatus> getAllStatuses();
         /** Вариант с varargs — можно передавать сразу несколько статусов */
         @Insert(onConflict = OnConflictStrategy.IGNORE)
         long insert(OrderStatus status);
@@ -23,7 +25,7 @@ public interface OrderStatusDAO {
         @Query("SELECT * FROM order_statuses WHERE statusId = :id")
         OrderStatus getById(int id);
 
-        @Query("SELECT * FROM order_statuses")
-        List<OrderStatus> getAll();
+        @Insert(onConflict = OnConflictStrategy.IGNORE)
+        void insertAll(OrderStatus... statuses);
     }
 

@@ -70,7 +70,7 @@ import com.example.cfeprjct.User;
                 OrderedDessert.class,
                 CartItem.class
         },
-        version = 13,
+        version = 14,
         exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -229,16 +229,18 @@ public abstract class AppDatabase extends RoomDatabase {
     static final Migration MIGRATION_12_13 = new Migration(12, 13) {
         @Override
         public void migrate(@NonNull SupportSQLiteDatabase db) {
-            // 1) Справочник статусов: удаляем старый, создаём новый с statusName
+            // 1) Создаём справочник статусов заново (nullable statusName)
             db.execSQL("DROP TABLE IF EXISTS `order_statuses`");
             db.execSQL("CREATE TABLE IF NOT EXISTS `order_statuses` (" +
                     "`statusId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
-                    "`statusName` TEXT NOT NULL" +
+                    "`statusName` TEXT" +    // <- Убрали NOT NULL
                     ")");
+
+            // 2) Заполняем начальными значениями
             db.execSQL("INSERT INTO `order_statuses` (statusName) VALUES " +
                     "('В готовке'),('В доставке'),('Доставлен')");
 
-            // 2) Позиции заказов: сбрасываем и пересоздаём
+            // 3) Пересоздаём таблицы позиций заказа
             db.execSQL("DROP TABLE IF EXISTS `ordered_drinks`");
             db.execSQL("CREATE TABLE IF NOT EXISTS `ordered_drinks` (" +
                     "`orderedDrinkId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
@@ -248,7 +250,7 @@ public abstract class AppDatabase extends RoomDatabase {
                     "FOREIGN KEY(`orderId`) REFERENCES `orders`(`orderId`) " +
                     "ON UPDATE CASCADE ON DELETE CASCADE" +
                     ")");
-
+            // аналогично для ordered_dishes и ordered_desserts
             db.execSQL("DROP TABLE IF EXISTS `ordered_dishes`");
             db.execSQL("CREATE TABLE IF NOT EXISTS `ordered_dishes` (" +
                     "`orderedDishId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
@@ -258,7 +260,6 @@ public abstract class AppDatabase extends RoomDatabase {
                     "FOREIGN KEY(`orderId`) REFERENCES `orders`(`orderId`) " +
                     "ON UPDATE CASCADE ON DELETE CASCADE" +
                     ")");
-
             db.execSQL("DROP TABLE IF EXISTS `ordered_desserts`");
             db.execSQL("CREATE TABLE IF NOT EXISTS `ordered_desserts` (" +
                     "`orderedDessertId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
@@ -269,7 +270,7 @@ public abstract class AppDatabase extends RoomDatabase {
                     "ON UPDATE CASCADE ON DELETE CASCADE" +
                     ")");
 
-            // 3) Пересоздаём таблицу orders, но перед этим временно её переименовываем
+            // 4) Пересоздаём таблицу orders
             db.execSQL("ALTER TABLE `orders` RENAME TO `orders_old`");
             db.execSQL("CREATE TABLE IF NOT EXISTS `orders` (" +
                     "`orderId` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
@@ -280,15 +281,22 @@ public abstract class AppDatabase extends RoomDatabase {
                     "FOREIGN KEY(`statusId`) REFERENCES `order_statuses`(`statusId`) " +
                     "ON UPDATE CASCADE ON DELETE RESTRICT" +
                     ")");
-
-            // 4) Копируем данные из orders_old, теперь с правильными именами колонок
             db.execSQL("INSERT INTO `orders` (orderId, userId, createdAt, totalPrice, statusId) " +
                     "SELECT orderId, userId, createdAt, totalPrice, statusId FROM orders_old");
-
-            // 5) Удаляем временную таблицу
             db.execSQL("DROP TABLE orders_old");
         }
     };
+
+    static final Migration MIGRATION_13_14 = new Migration(13, 14) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            // Добавляем колонку size в каждую из трёх таблиц
+            db.execSQL("ALTER TABLE `ordered_drinks`   ADD COLUMN `size` INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("ALTER TABLE `ordered_dishes`   ADD COLUMN `size` INTEGER NOT NULL DEFAULT 0");
+            db.execSQL("ALTER TABLE `ordered_desserts` ADD COLUMN `size` INTEGER NOT NULL DEFAULT 0");
+        }
+    };
+
 
 
     public static synchronized AppDatabase getInstance(Context context) {
@@ -307,7 +315,8 @@ public abstract class AppDatabase extends RoomDatabase {
                             MIGRATION_9_10,
                             MIGRATION_10_11,
                             MIGRATION_11_12,
-                            MIGRATION_12_13
+                            MIGRATION_12_13,
+                            MIGRATION_13_14
                     )
                     .build();
         }
