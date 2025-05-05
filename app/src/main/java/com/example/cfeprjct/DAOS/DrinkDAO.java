@@ -21,6 +21,9 @@ public interface DrinkDAO {
     @Update
     void updateDrink(Drink drink);
 
+    @Query("SELECT * FROM drinks WHERE drinkId = :drinkId LIMIT 1")
+    Drink getById(int drinkId);
+
     @Delete
     void deleteDrink(Drink drink);
 

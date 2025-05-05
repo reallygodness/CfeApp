@@ -16,4 +16,7 @@ public interface OrderedDessertDAO {
 
     @Query("SELECT * FROM ordered_desserts WHERE orderId = :orderId")
     List<OrderedDessert> getOrderedDessertsByOrderId(int orderId);
+
+    @Query("SELECT * FROM ordered_desserts WHERE orderId = :orderId")
+    List<OrderedDessert> getByOrderId(int orderId);
 }

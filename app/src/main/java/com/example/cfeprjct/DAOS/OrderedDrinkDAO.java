@@ -16,4 +16,8 @@ public interface OrderedDrinkDAO {
 
     @Query("SELECT * FROM ordered_drinks WHERE orderId = :orderId")
     List<OrderedDrink> getOrderedDrinksByOrderId(int orderId);
+
+    /** Получить все напитки, привязанные к конкретному заказу */
+    @Query("SELECT * FROM ordered_drinks WHERE orderId = :orderId")
+    List<OrderedDrink> getByOrderId(int orderId);
 }

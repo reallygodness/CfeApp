@@ -20,6 +20,9 @@ public interface OrderDAO {
     @Update
     void updateOrder(Order order);
 
+    @Query("SELECT * FROM orders ORDER BY createdAt DESC")
+    LiveData<List<Order>> getAllLiveOrders();
+
     @Delete
     void deleteOrder(Order order);
 
@@ -31,4 +34,8 @@ public interface OrderDAO {
 
     @Query("SELECT * FROM orders WHERE userId = :userId")
     List<Order> getOrdersByUserId(String userId);
+
+    @Query("SELECT * FROM orders WHERE userId = :userId ORDER BY createdAt DESC")
+    LiveData<List<Order>> getOrdersByUserIdLive(String userId);
+
 }

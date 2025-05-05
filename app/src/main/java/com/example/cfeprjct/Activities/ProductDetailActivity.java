@@ -28,10 +28,6 @@ import com.example.cfeprjct.DAOS.OrderedDessertDAO;
 import com.example.cfeprjct.DAOS.OrderedDishDAO;
 import com.example.cfeprjct.DAOS.OrderedDrinkDAO;
 import com.example.cfeprjct.Entities.CartItem;
-import com.example.cfeprjct.Entities.Order;
-import com.example.cfeprjct.Entities.OrderedDessert;
-import com.example.cfeprjct.Entities.OrderedDish;
-import com.example.cfeprjct.Entities.OrderedDrink;
 import com.example.cfeprjct.Entities.Review;
 import com.example.cfeprjct.Entities.Volume;
 import com.example.cfeprjct.R;
@@ -41,13 +37,10 @@ import com.google.android.material.button.MaterialButton;
 import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.firebase.firestore.FirebaseFirestore;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 public class ProductDetailActivity extends AppCompatActivity {
-
     public static final String EXTRA_ITEM = "extra_catalog_item";
 
     private AppDatabase db;
@@ -57,10 +50,7 @@ public class ProductDetailActivity extends AppCompatActivity {
     private float calculatedPrice;
     private int selectedVolumeMl;
 
-    private TextView tvPrice;
-    private TextView tvRating;
-    private TextView tvSize;
-    private TextView tvLabelSize;
+    private TextView tvPrice, tvRating, tvSize, tvLabelSize;
     private MaterialButtonToggleGroup sizes;
     private int mlS, mlM, mlL;
 
@@ -70,7 +60,7 @@ public class ProductDetailActivity extends AppCompatActivity {
     private EditText etComment;
     private MaterialButton btnSubmitReview;
     private RecyclerView rvReviews;
-    private ListAdapter<Review, ?> reviewAdapter;
+    private ListAdapter<Review, ReviewAdapter.VH> reviewAdapter;
 
     private String userId;
     private boolean isLoggedIn;
@@ -88,19 +78,17 @@ public class ProductDetailActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_product_detail);
 
-        // edge-to-edge padding on toolbar
+        // edge-to-edge padding
         View root = findViewById(R.id.coordinator_root);
         ViewCompat.setOnApplyWindowInsetsListener(root, (v, insets) -> {
             Insets sb = insets.getInsets(WindowInsetsCompat.Type.statusBars());
             MaterialToolbar tb = findViewById(R.id.toolbar);
-            tb.setPadding(tb.getPaddingLeft(), sb.top,
-                    tb.getPaddingRight(), tb.getPaddingBottom());
+            tb.setPadding(tb.getPaddingLeft(), sb.top, tb.getPaddingRight(), tb.getPaddingBottom());
             return insets;
         });
 
-        // получаем переданный товар
-        final CatalogItem item =
-                (CatalogItem) getIntent().getSerializableExtra(EXTRA_ITEM);
+        // получаем товар
+        CatalogItem item = (CatalogItem) getIntent().getSerializableExtra(EXTRA_ITEM);
         if (item == null) { finish(); return; }
         productType = item.getType();
         productId   = item.getId();
@@ -128,14 +116,14 @@ public class ProductDetailActivity extends AppCompatActivity {
         btnSubmitReview       = findViewById(R.id.btnSubmitReview);
         rvReviews             = findViewById(R.id.rvReviews);
 
-        // setup RecyclerView for reviews
+        // RecyclerView для отзывов
         rvReviews.setLayoutManager(new LinearLayoutManager(this));
-        reviewAdapter = new com.example.cfeprjct.Activities.ProductDetailActivity.ReviewAdapter();
-        rvReviews.setAdapter((RecyclerView.Adapter<?>) reviewAdapter);
+        reviewAdapter = new ReviewAdapter();
+        rvReviews.setAdapter(reviewAdapter);
 
-        // fill UI
+        // Заполняем UI
         tvTitle.setText(item.getTitle());
-        tvRating.setText(String.format(Locale.getDefault(), "%.1f", item.getRating()));
+        tvRating.setText(String.format(Locale.getDefault(),"%.1f", item.getRating()));
         tvDesc.setText(item.getDescription());
         Glide.with(this)
                 .load(item.getImageUrl())
@@ -143,7 +131,7 @@ public class ProductDetailActivity extends AppCompatActivity {
                 .centerCrop()
                 .into(iv);
 
-        // size vs volume
+        // Вес для блюд/десертов, объём для напитков
         if ("dish".equals(productType) || "dessert".equals(productType)) {
             tvLabelSize.setVisibility(View.GONE);
             sizes.setVisibility(View.GONE);
@@ -155,6 +143,7 @@ public class ProductDetailActivity extends AppCompatActivity {
                 tvSize.setVisibility(View.GONE);
             }
         } else {
+            // напиток
             tvSize.setVisibility(View.GONE);
             tvLabelSize.setVisibility(View.VISIBLE);
             sizes.setVisibility(View.VISIBLE);
@@ -172,12 +161,17 @@ public class ProductDetailActivity extends AppCompatActivity {
         isLoggedIn = AuthUtils.isLoggedIn(this);
         userId     = AuthUtils.getLoggedInUserId(this);
 
-        // load reviews, hide/show block
+        // Загрузка отзывов и скрытие/показ блока
         LiveData<List<Review>> liveReviews;
         switch (productType) {
-            case "drink":  liveReviews = db.reviewDAO().getReviewsForDrinkId(productId);  break;
-            case "dish":   liveReviews = db.reviewDAO().getReviewsForDishId(productId);   break;
-            default:       liveReviews = db.reviewDAO().getReviewsForDessertId(productId);
+            case "drink":
+                liveReviews = db.reviewDAO().getReviewsForDrinkId(productId);
+                break;
+            case "dish":
+                liveReviews = db.reviewDAO().getReviewsForDishId(productId);
+                break;
+            default:
+                liveReviews = db.reviewDAO().getReviewsForDessertId(productId);
         }
         liveReviews.observe(this, reviews -> {
             if (reviews == null || reviews.isEmpty()) {
@@ -187,11 +181,11 @@ public class ProductDetailActivity extends AppCompatActivity {
                 reviewAdapter.submitList(reviews);
                 float sum = 0f;
                 for (Review r : reviews) sum += r.getRating();
-                tvRating.setText(String.format(Locale.getDefault(), "%.1f", sum / reviews.size()));
+                tvRating.setText(String.format(Locale.getDefault(),"%.1f", sum/reviews.size()));
             }
         });
 
-        // volume sync if drink
+        // Синхронизация volumes для напитков
         if ("drink".equals(productType)) {
             new CatalogSync(this).syncVolumes(() -> {
                 List<Volume> vols = db.volumeDAO().getAllVolumes();
@@ -206,7 +200,7 @@ public class ProductDetailActivity extends AppCompatActivity {
             });
         }
 
-        // add to cart
+        // Добавление в корзину
         btnAdd.setOnClickListener(v -> {
             new Thread(() -> {
                 int sizeValue = "drink".equals(productType)
@@ -217,7 +211,7 @@ public class ProductDetailActivity extends AppCompatActivity {
                         .getByProductAndSize(productType, productId, sizeValue);
 
                 if (existing != null) {
-                    int q = Math.min(existing.getQuantity() + 1, 15);
+                    int q = Math.min(existing.getQuantity()+1, 15);
                     existing.setQuantity(q);
                     db.cartItemDao().update(existing);
                 } else {
@@ -239,15 +233,14 @@ public class ProductDetailActivity extends AppCompatActivity {
     }
 
     private void configureSizeToggle() {
-        // по умолчанию выбираем S
+        // по-умолчанию S
         sizes.check(R.id.btnSizeS);
         selectedVolumeMl = mlS;
         calculatedPrice  = basePrice;
-        tvPrice.setText(String.format("%d ₽", (int) calculatedPrice));
+        tvPrice.setText(String.format("%d ₽", (int)calculatedPrice));
 
         sizes.addOnButtonCheckedListener((group, checkedId, isChecked) -> {
             if (!isChecked) return;
-
             if (checkedId == R.id.btnSizeM) {
                 selectedVolumeMl = mlM;
                 calculatedPrice  = basePrice + 100;
@@ -255,15 +248,12 @@ public class ProductDetailActivity extends AppCompatActivity {
                 selectedVolumeMl = mlL;
                 calculatedPrice  = basePrice + 150;
             } else {
-                // сюда зайдёт и btnSizeS
                 selectedVolumeMl = mlS;
                 calculatedPrice  = basePrice;
             }
-
-            tvPrice.setText(String.format("%d ₽", (int) calculatedPrice));
+            tvPrice.setText(String.format("%d ₽", (int)calculatedPrice));
         });
     }
-
 
     private class ReviewAdapter extends ListAdapter<Review, ReviewAdapter.VH> {
         ReviewAdapter() {
@@ -272,9 +262,9 @@ public class ProductDetailActivity extends AppCompatActivity {
                     return a.getReviewId() == b.getReviewId();
                 }
                 @Override public boolean areContentsTheSame(Review a, Review b) {
-                    return a.getRating() == b.getRating()
+                    return a.getRating()==b.getRating()
                             && a.getText().equals(b.getText())
-                            && a.getReviewDate() == b.getReviewDate();
+                            && a.getReviewDate()==b.getReviewDate();
                 }
             });
         }
@@ -289,16 +279,16 @@ public class ProductDetailActivity extends AppCompatActivity {
             h.ratingBar.setRating(r.getRating());
             h.tvText.setText(r.getText());
             h.tvUserName.setText("Аноним");
-            String reviewerId = r.getUserId();
-            if (reviewerId != null && !reviewerId.isEmpty()) {
+            if (r.getUserId()!=null && !r.getUserId().isEmpty()) {
                 firestore.collection("users")
-                        .document(reviewerId)
+                        .document(r.getUserId())
                         .get()
-                        .addOnSuccessListener(doc -> {
+                        .addOnSuccessListener(doc-> {
                             if (doc.exists()) {
                                 String first = doc.getString("firstName");
                                 String last  = doc.getString("lastName");
-                                String full = ((first!=null)?first:"") + ((last!=null)?" "+last:"");
+                                String full = ((first!=null)?first:"")
+                                        + ((last!=null)?" "+last:"");
                                 h.tvUserName.setText(full.trim().isEmpty()?"Аноним":full);
                             }
                         });
