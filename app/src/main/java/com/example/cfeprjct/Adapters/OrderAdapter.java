@@ -16,6 +16,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
 import com.example.cfeprjct.AppDatabase;
+import com.example.cfeprjct.Entities.Address;
 import com.example.cfeprjct.Entities.CartItem;
 import com.example.cfeprjct.Entities.Order;
 import com.example.cfeprjct.Entities.OrderStatus;
@@ -70,6 +71,16 @@ public class OrderAdapter extends ListAdapter<Order, OrderAdapter.VH> {
 
         // Убираем предыдущие товары
         h.itemsContainer.removeAllViews();
+
+        // 1) Подставляем адрес
+        Executors.newSingleThreadExecutor().execute(() -> {
+            Address addr = db.addressDAO().getAddressByUserId(o.getUserId());
+            String formatted = addr != null
+                    ? addr.getCity() + ", " + addr.getStreet() + " " + addr.getHouse()
+                    + (addr.getApartment().isEmpty() ? "" : ", кв. " + addr.getApartment())
+                    : "Адрес не задан";
+            h.itemView.post(() -> h.tvAddress.setText(formatted));
+        });
 
         // Загружаем позиции заказа в фоне
         Executors.newSingleThreadExecutor().execute(() -> {
@@ -158,7 +169,7 @@ public class OrderAdapter extends ListAdapter<Order, OrderAdapter.VH> {
     }
 
     static class VH extends RecyclerView.ViewHolder {
-        TextView     tvOrderId, tvDate, tvStatus, tvPayment;
+        TextView     tvOrderId, tvDate, tvStatus, tvPayment, tvAddress;
         LinearLayout itemsContainer;
         VH(View v) {
             super(v);
@@ -167,6 +178,7 @@ public class OrderAdapter extends ListAdapter<Order, OrderAdapter.VH> {
             tvStatus       = v.findViewById(R.id.tvOrderStatus);
             tvPayment      = v.findViewById(R.id.tvOrderPayment);
             itemsContainer = v.findViewById(R.id.itemsContainer);
+            tvAddress      = v.findViewById(R.id.tvOrderAddress);
         }
     }
 }
