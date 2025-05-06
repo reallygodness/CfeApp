@@ -170,16 +170,20 @@ public class CatalogFragment extends Fragment {
         // Вкладки
         drinkTabButton.setOnClickListener(v -> {
             currentCategory = Category.DRINKS;
+            updateTabStyles();
             loadDrinks(searchEditText.getText().toString());
         });
         dishTabButton.setOnClickListener(v -> {
             currentCategory = Category.DISHES;
+            updateTabStyles();
             loadDishes(searchEditText.getText().toString());
         });
         dessertTabButton.setOnClickListener(v -> {
             currentCategory = Category.DESSERTS;
+            updateTabStyles();
             loadDesserts(searchEditText.getText().toString());
         });
+
 
         // Поиск
         searchEditText.addTextChangedListener(new TextWatcher() {
@@ -195,7 +199,16 @@ public class CatalogFragment extends Fragment {
             }
         });
 
+        updateTabStyles();
+
         return view;
+    }
+
+    /** Переключает флаг selected на три кнопки */
+    private void updateTabStyles() {
+        drinkTabButton.setSelected(currentCategory == Category.DRINKS);
+        dishTabButton .setSelected(currentCategory == Category.DISHES);
+        dessertTabButton.setSelected(currentCategory == Category.DESSERTS);
     }
 
     @Override
