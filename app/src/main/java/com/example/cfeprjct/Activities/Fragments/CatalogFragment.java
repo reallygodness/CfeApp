@@ -3,6 +3,7 @@ package com.example.cfeprjct.Activities.Fragments;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.location.Geocoder;
 import android.os.Bundle;
@@ -27,6 +28,7 @@ import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.example.cfeprjct.Adapters.CatalogAdapter;
 import com.example.cfeprjct.Adapters.CatalogItem;
@@ -45,6 +47,7 @@ import com.example.cfeprjct.R;
 import com.example.cfeprjct.Sync.CatalogSync;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.material.button.MaterialButton;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.io.IOException;
@@ -69,9 +72,11 @@ public class CatalogFragment extends Fragment {
     private EditText        searchEditText;
     private RecyclerView    catalogRecyclerView;
     private CatalogAdapter  catalogAdapter;
-    private Button          drinkTabButton, dishTabButton, dessertTabButton;
+    private MaterialButton  drinkTabButton, dishTabButton, dessertTabButton;
     private TextView        addressTextView;
     private ImageView       editAddressButton;
+
+    private SwipeRefreshLayout swipeRefreshLayout;
 
     private enum Category { DRINKS, DISHES, DESSERTS }
     private Category currentCategory = Category.DRINKS;
@@ -105,6 +110,9 @@ public class CatalogFragment extends Fragment {
         catalogRecyclerView = view.findViewById(R.id.catalogRecyclerView);
         addressTextView     = view.findViewById(R.id.addressTextView);
         editAddressButton   = view.findViewById(R.id.editAddressButton);
+        // === ↓↓↓ добавлено Pull-to-Refresh ↓↓↓ ===
+        swipeRefreshLayout  = view.findViewById(R.id.swipeRefreshLayout);
+        // === ↑↑↑ добавлено Pull-to-Refresh ↑↑↑ ===
 
         catalogRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         catalogAdapter = new CatalogAdapter();
@@ -116,13 +124,12 @@ public class CatalogFragment extends Fragment {
             new Thread(() -> {
                 Address local = addressDAO.getAddressByUserId(userId);
                 if (local != null) {
-                    String formatted = local.getCity()
-                            + ", " + local.getStreet()
-                            + " " + local.getHouse()
+                    String formatted = local.getCity() + ", "
+                            + local.getStreet() + " "
+                            + local.getHouse()
                             + (local.getApartment().isEmpty() ? "" : ", кв. " + local.getApartment());
                     if (isAdded()) {
-                        requireActivity().runOnUiThread(() ->
-                                addressTextView.setText(formatted));
+                        requireActivity().runOnUiThread(() -> addressTextView.setText(formatted));
                     }
                 } else {
                     fetchAddressFromFirestore(userId);
@@ -145,27 +152,22 @@ public class CatalogFragment extends Fragment {
                 requestLastLocation();
             }
         });
-
-        // Карандашик – ручной ввод
         editAddressButton.setOnClickListener(v -> showAddressInputDialog());
 
         // Синхронизация каталога
         CatalogSync sync = new CatalogSync(requireContext());
-        sync.syncDrinks(() -> {
-            if (!isAdded()) return;
-            requireActivity().runOnUiThread(() ->
-                    loadDrinks(searchEditText.getText().toString()));
-        });
-        sync.syncDishes(() -> {
-            if (!isAdded()) return;
-            requireActivity().runOnUiThread(() ->
-                    loadDishes(searchEditText.getText().toString()));
-        });
-        sync.syncDesserts(() -> {
-            if (!isAdded()) return;
-            requireActivity().runOnUiThread(() ->
-                    loadDesserts(searchEditText.getText().toString()));
-        });
+        sync.syncDrinks(() -> runOnUiThreadIfAdded(() -> {
+            if (currentCategory == Category.DRINKS)
+                loadDrinks(searchEditText.getText().toString());
+        }));
+        sync.syncDishes(() -> runOnUiThreadIfAdded(() -> {
+            if (currentCategory == Category.DISHES)
+                loadDishes(searchEditText.getText().toString());
+        }));
+        sync.syncDesserts(() -> runOnUiThreadIfAdded(() -> {
+            if (currentCategory == Category.DESSERTS)
+                loadDesserts(searchEditText.getText().toString());
+        }));
 
         // Вкладки
         drinkTabButton.setOnClickListener(v -> {
@@ -184,7 +186,6 @@ public class CatalogFragment extends Fragment {
             loadDesserts(searchEditText.getText().toString());
         });
 
-
         // Поиск
         searchEditText.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int st, int b, int c) {}
@@ -199,16 +200,81 @@ public class CatalogFragment extends Fragment {
             }
         });
 
+        // === ↓↓↓ добавлено Pull-to-Refresh ↓↓↓ ===
+        swipeRefreshLayout.setOnRefreshListener(() -> {
+            // при свайпе вниз — синхронизируем именно активную категорию
+            switch (currentCategory) {
+                case DRINKS:
+                    sync.syncDrinks(() -> runOnUiThreadIfAdded(() -> {
+                        loadDrinks(searchEditText.getText().toString());
+                        swipeRefreshLayout.setRefreshing(false);
+                    }));
+                    break;
+                case DISHES:
+                    sync.syncDishes(() -> runOnUiThreadIfAdded(() -> {
+                        loadDishes(searchEditText.getText().toString());
+                        swipeRefreshLayout.setRefreshing(false);
+                    }));
+                    break;
+                case DESSERTS:
+                    sync.syncDesserts(() -> runOnUiThreadIfAdded(() -> {
+                        loadDesserts(searchEditText.getText().toString());
+                        swipeRefreshLayout.setRefreshing(false);
+                    }));
+                    break;
+            }
+        });
+        // === ↑↑↑ добавлено Pull-to-Refresh ↑↑↑ ===
+
+        // Первоначальная стилизация и загрузка
         updateTabStyles();
+        loadDrinks("");
 
         return view;
     }
-
-    /** Переключает флаг selected на три кнопки */
+    /** Программно меняет фон, текст и обводку кнопок в зависимости от selected */
     private void updateTabStyles() {
-        drinkTabButton.setSelected(currentCategory == Category.DRINKS);
-        dishTabButton .setSelected(currentCategory == Category.DISHES);
-        dessertTabButton.setSelected(currentCategory == Category.DESSERTS);
+        // параметры
+        int accent = Color.parseColor("#C67C4E");
+        int strokeWidth = (int)(2 * getResources().getDisplayMetrics().density + .5f);
+        // DRINKS
+        if (currentCategory == Category.DRINKS) {
+            drinkTabButton.setBackgroundTintList(ColorStateList.valueOf(accent));
+            drinkTabButton.setTextColor(Color.WHITE);
+            drinkTabButton.setStrokeWidth(0);
+        } else {
+            drinkTabButton.setBackgroundTintList(ColorStateList.valueOf(Color.WHITE));
+            drinkTabButton.setTextColor(accent);
+            drinkTabButton.setStrokeColor(ColorStateList.valueOf(accent));
+            drinkTabButton.setStrokeWidth(strokeWidth);
+        }
+        // DISHES
+        if (currentCategory == Category.DISHES) {
+            dishTabButton.setBackgroundTintList(ColorStateList.valueOf(accent));
+            dishTabButton.setTextColor(Color.WHITE);
+            dishTabButton.setStrokeWidth(0);
+        } else {
+            dishTabButton.setBackgroundTintList(ColorStateList.valueOf(Color.WHITE));
+            dishTabButton.setTextColor(accent);
+            dishTabButton.setStrokeColor(ColorStateList.valueOf(accent));
+            dishTabButton.setStrokeWidth(strokeWidth);
+        }
+        // DESSERTS
+        if (currentCategory == Category.DESSERTS) {
+            dessertTabButton.setBackgroundTintList(ColorStateList.valueOf(accent));
+            dessertTabButton.setTextColor(Color.WHITE);
+            dessertTabButton.setStrokeWidth(0);
+        } else {
+            dessertTabButton.setBackgroundTintList(ColorStateList.valueOf(Color.WHITE));
+            dessertTabButton.setTextColor(accent);
+            dessertTabButton.setStrokeColor(ColorStateList.valueOf(accent));
+            dessertTabButton.setStrokeWidth(strokeWidth);
+        }
+    }
+
+    private void runOnUiThreadIfAdded(Runnable r) {
+        if (!isAdded()) return;
+        requireActivity().runOnUiThread(r);
     }
 
     @Override

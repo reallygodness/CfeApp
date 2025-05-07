@@ -1,6 +1,7 @@
 package com.example.cfeprjct.Adapters;
 
 import android.content.Context;
+import android.os.Handler;
 import android.text.format.DateFormat;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -47,47 +48,44 @@ public class OrderAdapter extends ListAdapter<Order, OrderAdapter.VH> {
                         && a.getStatusId() == b.getStatusId();
             }
         });
-        this.inflater = LayoutInflater.from(ctx);
-        this.db       = AppDatabase.getInstance(ctx);
-        this.statuses = statuses;
+        this.inflater  = LayoutInflater.from(ctx);
+        this.db        = AppDatabase.getInstance(ctx);
+        this.statuses  = statuses;
     }
 
-    @NonNull @Override
+    @NonNull
+    @Override
     public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
         View v = inflater.inflate(R.layout.item_order, parent, false);
         return new VH(v);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull VH h, int pos) {
-        Order o = getItem(pos);
-        h.tvOrderId.setText("Заказ №" + o.getOrderId());
-        h.tvDate   .setText(DateFormat.format("dd.MM.yy HH:mm", new Date(o.getCreatedAt())));
-        h.tvStatus .setText(statuses.get(o.getStatusId() - 1).getStatusName());
-        // Сумма к оплате
-        h.tvPayment.setText(
-                "К оплате курьеру: " + (int)o.getTotalPrice() + " ₽"
-        );
+    public void onBindViewHolder(@NonNull final VH holder, int position) {
+        final Order order = getItem(position);
 
-        // Убираем предыдущие товары
-        h.itemsContainer.removeAllViews();
+        // 1) Заполняем базовые поля
+        holder.tvOrderId.setText("Заказ №" + order.getOrderId());
+        holder.tvDate   .setText(DateFormat.format("dd.MM.yy HH:mm", new Date(order.getCreatedAt())));
+        holder.tvPayment.setText("К оплате курьеру: " + (int)order.getTotalPrice() + " ₽");
+        // статус и таймер выставятся далее
 
-        // 1) Подставляем адрес
+        // 2) Адрес доставки
         Executors.newSingleThreadExecutor().execute(() -> {
-            Address addr = db.addressDAO().getAddressByUserId(o.getUserId());
+            Address addr = db.addressDAO().getAddressByUserId(order.getUserId());
             String formatted = addr != null
                     ? addr.getCity() + ", " + addr.getStreet() + " " + addr.getHouse()
                     + (addr.getApartment().isEmpty() ? "" : ", кв. " + addr.getApartment())
                     : "Адрес не задан";
-            h.itemView.post(() -> h.tvAddress.setText(formatted));
+            holder.itemView.post(() -> holder.tvAddress.setText(formatted));
         });
 
-        // Загружаем позиции заказа в фоне
+        // 3) Список товаров в заказе
+        holder.itemsContainer.removeAllViews();
         Executors.newSingleThreadExecutor().execute(() -> {
             List<CartItem> items = new ArrayList<>();
 
-            // напитки
-            for (OrderedDrink od : db.orderedDrinkDAO().getByOrderId(o.getOrderId())) {
+            for (OrderedDrink od : db.orderedDrinkDAO().getByOrderId(order.getOrderId())) {
                 var d = db.drinkDAO().getById(od.getDrinkId());
                 CartItem ci = new CartItem();
                 ci.setProductType("drink");
@@ -95,12 +93,10 @@ public class OrderAdapter extends ListAdapter<Order, OrderAdapter.VH> {
                 ci.setImageUrl(d.getImageUrl());
                 ci.setQuantity(od.getQuantity());
                 ci.setUnitPrice(db.priceListDAO().getLatestPriceForDrink(d.getDrinkId()));
-                ci.setSize(od.getQuantity() > 0 ? od.getQuantity() * od.getQuantity() : 0); // если нужен вес
-                ci.setSize(od.getSize()); // если в OrderedDrink есть поле size
+                ci.setSize(od.getSize());
                 items.add(ci);
             }
-            // блюда
-            for (OrderedDish od : db.orderedDishDAO().getByOrderId(o.getOrderId())) {
+            for (OrderedDish od : db.orderedDishDAO().getByOrderId(order.getOrderId())) {
                 var d = db.dishDAO().getById(od.getDishId());
                 CartItem ci = new CartItem();
                 ci.setProductType("dish");
@@ -108,11 +104,10 @@ public class OrderAdapter extends ListAdapter<Order, OrderAdapter.VH> {
                 ci.setImageUrl(d.getImageUrl());
                 ci.setQuantity(od.getQuantity());
                 ci.setUnitPrice(db.priceListDAO().getLatestPriceForDish(d.getDishId()));
-                ci.setSize(d.getSize());
+                ci.setSize(od.getSize());
                 items.add(ci);
             }
-            // десерты
-            for (OrderedDessert od : db.orderedDessertDAO().getByOrderId(o.getOrderId())) {
+            for (OrderedDessert od : db.orderedDessertDAO().getByOrderId(order.getOrderId())) {
                 var d = db.dessertDAO().getById(od.getDessertId());
                 CartItem ci = new CartItem();
                 ci.setProductType("dessert");
@@ -120,16 +115,15 @@ public class OrderAdapter extends ListAdapter<Order, OrderAdapter.VH> {
                 ci.setImageUrl(d.getImageUrl());
                 ci.setQuantity(od.getQuantity());
                 ci.setUnitPrice(db.priceListDAO().getLatestPriceForDessert(d.getDessertId()));
-                ci.setSize(d.getSize());
+                ci.setSize(od.getSize());
                 items.add(ci);
             }
 
-            // Отрисовываем в UI-потоке
-            h.itemView.post(() -> {
+            holder.itemView.post(() -> {
                 for (CartItem ci : items) {
-                    View iv = inflater.inflate(R.layout.item_cart, h.itemsContainer, false);
+                    View iv = inflater.inflate(R.layout.item_cart, holder.itemsContainer, false);
 
-                    // сразу скрываем контролы количества и удаления
+                    // скрываем лишнее из корзины
                     View btnDec    = iv.findViewById(R.id.btnDecrease);
                     View btnInc    = iv.findViewById(R.id.btnIncrease);
                     View btnRemove = iv.findViewById(R.id.btnRemove);
@@ -137,21 +131,19 @@ public class OrderAdapter extends ListAdapter<Order, OrderAdapter.VH> {
                     if (btnInc    != null) btnInc.setVisibility(View.GONE);
                     if (btnRemove != null) btnRemove.setVisibility(View.GONE);
 
-                    ImageView img    = iv.findViewById(R.id.itemImage);
-                    TextView  title  = iv.findViewById(R.id.itemTitle);
-                    TextView  size   = iv.findViewById(R.id.itemSize);
-                    TextView  qty    = iv.findViewById(R.id.tvQuantity);
-                    TextView  price  = iv.findViewById(R.id.itemPrice);
+                    ImageView img   = iv.findViewById(R.id.itemImage);
+                    TextView title  = iv.findViewById(R.id.itemTitle);
+                    TextView size   = iv.findViewById(R.id.itemSize);
+                    TextView qty    = iv.findViewById(R.id.tvQuantity);
+                    TextView price  = iv.findViewById(R.id.itemPrice);
 
                     title.setText(ci.getTitle());
                     qty  .setText("×" + ci.getQuantity());
-                    price.setText((int)(ci.getUnitPrice() * ci.getQuantity()) + " ₽");
-
+                    price.setText((int)(ci.getUnitPrice()*ci.getQuantity()) + " ₽");
                     if (ci.getSize() > 0) {
                         size.setVisibility(View.VISIBLE);
                         size.setText(ci.getSize()
-                                + (ci.getProductType().equals("drink") ? " ml" : " г")
-                        );
+                                + (ci.getProductType().equals("drink") ? " ml" : " г"));
                     } else {
                         size.setVisibility(View.GONE);
                     }
@@ -162,14 +154,53 @@ public class OrderAdapter extends ListAdapter<Order, OrderAdapter.VH> {
                             .centerCrop()
                             .into(img);
 
-                    h.itemsContainer.addView(iv);
+                    holder.itemsContainer.addView(iv);
                 }
             });
         });
+
+        // ======= 4) Логика таймера статусов =======
+        final Handler handler = new Handler(holder.itemView.getContext().getMainLooper());
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                long elapsed = System.currentTimeMillis() - order.getCreatedAt();
+                long prepMs  = 5 * 60_000;
+                long delivMs = 15 * 60_000;
+
+                if (elapsed < prepMs) {
+                    // в готовке
+                    holder.tvStatus.setText("В готовке");
+                    long rem = prepMs - elapsed;
+                    int m = (int)(rem / 60_000);
+                    int s = (int)((rem % 60_000) / 1000);
+                    holder.tvTimer.setVisibility(View.VISIBLE);
+                    holder.tvTimer.setText(String.format("Готовка: %02d:%02d", m, s));
+                    handler.postDelayed(this, 1000);
+
+                } else if (elapsed < prepMs + delivMs) {
+                    // в доставке
+                    holder.tvStatus.setText("В доставке");
+                    long rem = (prepMs + delivMs) - elapsed;
+                    int m = (int)(rem / 60_000);
+                    int s = (int)((rem % 60_000) / 1000);
+                    holder.tvTimer.setVisibility(View.VISIBLE);
+                    holder.tvTimer.setText(String.format("Доставка: %02d:%02d", m, s));
+                    handler.postDelayed(this, 1000);
+
+                } else {
+                    // доставлен и оплачен
+                    holder.tvStatus.setText("Доставлен и оплачен");
+                    holder.tvTimer.setVisibility(View.GONE);
+                }
+            }
+        };
+        handler.post(runnable);
+        // ======= /таймер =======
     }
 
     static class VH extends RecyclerView.ViewHolder {
-        TextView     tvOrderId, tvDate, tvStatus, tvPayment, tvAddress;
+        TextView     tvOrderId, tvDate, tvStatus, tvPayment, tvAddress, tvTimer;
         LinearLayout itemsContainer;
         VH(View v) {
             super(v);
@@ -179,6 +210,7 @@ public class OrderAdapter extends ListAdapter<Order, OrderAdapter.VH> {
             tvPayment      = v.findViewById(R.id.tvOrderPayment);
             itemsContainer = v.findViewById(R.id.itemsContainer);
             tvAddress      = v.findViewById(R.id.tvOrderAddress);
+            tvTimer        = v.findViewById(R.id.tvOrderTimer);
         }
     }
 }

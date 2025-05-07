@@ -44,11 +44,20 @@
             android:layout_marginTop="4dp"/>
 
         <TextView
+            android:id="@+id/tvOrderTimer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="14sp"
+            android:textColor="#C67C4E"
+            android:layout_marginTop="4dp"
+            android:visibility="gone"/>
+
+        <TextView
             android:id="@+id/tvOrderAddress"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textColor="@color/black"
-            android:text="Адрес доставки: ул. Ленина, д. 1, кв. 2"
+            android:text="Адрес доставки: ваш адрес"
             android:textSize="14sp"
             android:layout_marginTop="4dp"/>
 
@@ -67,7 +76,7 @@
             android:id="@+id/tvOrderPayment"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="К оплате курьеру: 350 ₽"
+            android:text="К оплате курьеру: 0 ₽"
             android:textColor="@color/black"
             android:textSize="16sp"
             android:textStyle="bold"
