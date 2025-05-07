@@ -38,7 +38,7 @@
                 android:layout_width="0dp"
                 android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:text="Москва, Новослободская 23"
+                android:text="Введите адрес"
                 android:textSize="16sp"
                 android:textStyle="bold"
                 android:textColor="@color/white" />
@@ -80,14 +80,17 @@
         android:paddingTop="8dp"
         android:layout_marginTop="10dp"
         android:paddingBottom="8dp">
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/drinkTabButton"
             style="@style/Widget.MaterialComponents.Button"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:textStyle="bold"
             android:background="@drawable/bg_category_tab"
             android:textColor="@color/white"
-            android:text="Напитки"/>
+            android:text="Кофе и напитки"/>
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/dishTabButton"
             style="@style/Widget.MaterialComponents.Button"
@@ -95,8 +98,10 @@
             android:layout_height="wrap_content"
             android:background="@drawable/bg_category_tab"
             android:textColor="@color/white"
+            android:textStyle="bold"
             android:layout_marginStart="16dp"
             android:text="Блюда" />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/dessertTabButton"
             style="@style/Widget.MaterialComponents.Button"
@@ -104,15 +109,24 @@
             android:layout_height="wrap_content"
             android:background="@drawable/bg_category_tab"
             android:textColor="@color/white"
+            android:textStyle="bold"
             android:layout_marginStart="16dp"
             android:text="Десерты" />
     </LinearLayout>
 
-    <!-- RecyclerView для каталога -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/catalogRecyclerView"
+    <!-- === Обёрнуто в SwipeRefreshLayout для Pull-to-Refresh === -->
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefreshLayout"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:contentDescription="@string/catalog_list_description"/>
+        android:layout_weight="1">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/catalogRecyclerView"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/catalog_list_description"/>
+
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
 </LinearLayout>

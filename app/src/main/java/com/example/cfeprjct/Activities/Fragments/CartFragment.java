@@ -42,13 +42,19 @@ import com.example.cfeprjct.R;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.material.button.MaterialButton;
+import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.Executors;
 
 public class CartFragment extends Fragment {
     private static final int REQ_LOC = 1001;
@@ -113,6 +119,29 @@ public class CartFragment extends Fragment {
                     fetchAddressFromFirestore(userId);
                 }
             }).start();
+
+            // если БД пуста — подгружаем корзину из Firestore
+            Executors.newSingleThreadExecutor().execute(() -> {
+                List<CartItem> localItems = db.cartItemDao().getAllSync();
+                if (localItems.isEmpty()) {
+                    firestore.collection("carts")
+                            .document(userId)
+                            .collection("items")
+                            .get()
+                            .addOnSuccessListener(query -> {
+                                List<CartItem> toInsert = new ArrayList<>();
+                                for (DocumentSnapshot doc : query.getDocuments()) {
+                                    CartItem ci = doc.toObject(CartItem.class);
+                                    if (ci != null) toInsert.add(ci);
+                                }
+                                Executors.newSingleThreadExecutor().execute(() -> {
+                                    for (CartItem ci : toInsert) {
+                                        db.cartItemDao().insert(ci);
+                                    }
+                                });
+                            });
+                }
+            });
         } else {
             tvAddress.setText("Введите адрес");
         }
@@ -149,9 +178,14 @@ public class CartFragment extends Fragment {
                 tvTotal.setText("Итог: 0 ₽");
                 btnCheckout.setEnabled(false);
             }
+
+            // **Синхронизация корзины в Firestore**
+            if (userId != null) {
+                syncCartItemsToFirestore(userId, items);
+            }
         });
 
-        // 6) Оформление заказа с переносом size
+        // 6) Оформление заказа
         btnCheckout.setOnClickListener(v -> {
             new Thread(() -> {
                 List<CartItem> items = db.cartItemDao().getAllSync();
@@ -161,18 +195,22 @@ public class CartFragment extends Fragment {
                 OrderStatus cook = orderStatusDAO.getByName("В готовке");
                 int cookId = cook != null ? cook.getStatusId() : 1;
 
+                // считаем сумму + доставка
                 float total = 100f; // 100₽ за доставку
-                for (CartItem ci : items) total += ci.getQuantity() * ci.getUnitPrice();
+                for (CartItem ci : items) {
+                    total += ci.getQuantity() * ci.getUnitPrice();
+                }
 
+                // создаём Order
                 Order order = new Order();
                 order.setUserId(userId);
                 order.setCreatedAt(now);
                 order.setStatusId(cookId);
                 order.setTotalPrice(total);
                 long newId = orderDAO.insertOrder(order);
-                int orderId = (int)newId;
+                int orderId = (int) newId;
 
-                // Переносим каждую позицию из корзины — теперь с size
+                // переносим позиции из корзины, передавая size
                 for (CartItem ci : items) {
                     switch (ci.getProductType()) {
                         case "drink":
@@ -202,17 +240,17 @@ public class CartFragment extends Fragment {
                     }
                 }
 
-                // Очищаем корзину
+                // очищаем корзину
                 db.cartItemDao().clearAll();
 
-                // На UI: тост и переключение на "Заказы"
+                // UI: toast, переключение на Заказы и смена статуса
                 new Handler(requireActivity().getMainLooper()).post(() -> {
                     Toast.makeText(requireContext(), "Заказ оформлен", Toast.LENGTH_SHORT).show();
-                    ((MainActivity)requireActivity())
+                    ((MainActivity) requireActivity())
                             .getBottomNavigationView()
                             .setSelectedItemId(R.id.nav_orders);
 
-                    // Через 20 мин переводим в "Доставлен"
+                    // через 20 минут переводим в "Доставлен"
                     new Handler().postDelayed(() -> {
                         Order o = orderDAO.getOrderById(orderId);
                         if (o != null && o.getStatusId() == cookId) {
@@ -224,11 +262,48 @@ public class CartFragment extends Fragment {
                         }
                     }, 20 * 60_000);
                 });
-
             }).start();
         });
 
         return view;
+    }
+
+    /** Синхронизирует локальные items → Firestore под carts/{userId}/items/{itemId} */
+    private void syncCartItemsToFirestore(String userId, List<CartItem> items) {
+        CollectionReference col = firestore
+                .collection("carts")
+                .document(userId)
+                .collection("items");
+
+        col.get().addOnSuccessListener(snapshot -> {
+            // собираем все удалённые серверные ID
+            Set<String> remoteIds = new HashSet<>();
+            for (DocumentSnapshot doc : snapshot.getDocuments()) {
+                remoteIds.add(doc.getId());
+            }
+
+            // для каждого локального элемента записываем/обновляем и убираем из remoteIds
+            for (CartItem ci : items) {
+                String docId = String.valueOf(ci.getId());
+                Map<String, Object> data = new HashMap<>();
+                data.put("id",          ci.getId());
+                data.put("productType", ci.getProductType());
+                data.put("productId",   ci.getProductId());
+                data.put("title",       ci.getTitle());
+                data.put("imageUrl",    ci.getImageUrl());
+                data.put("size",        ci.getSize());
+                data.put("unitPrice",   ci.getUnitPrice());
+                data.put("quantity",    ci.getQuantity());
+
+                col.document(docId).set(data);
+                remoteIds.remove(docId);
+            }
+
+            // всё, что осталось — давно удалено локально, удаляем из Firestore
+            for (String orphan : remoteIds) {
+                col.document(orphan).delete();
+            }
+        });
     }
 
     @SuppressLint("MissingPermission")

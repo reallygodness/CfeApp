@@ -17,7 +17,7 @@
     <color name="background_white">#F9F9F9</color>
     <color name="gray_button">#F2EDE8</color>
     <color name="orange_button">#C67C4E</color>
-    <color name="white_60">#99FFFFFF</color>  <!-- 60% белого -->
-    <color name="search_bg">#2C2C2E</color>    <!-- можно чуть светлее, на ваш вкус -->
-    <color name="cat_tab_text_color">#C67C4E </color>    <!-- можно чуть светлее, на ваш вкус -->
+    <color name="white_60">#99FFFFFF</color>
+    <color name="search_bg">#2C2C2E</color>
+    <color name="cat_tab_text_color">#C67C4E </color>
 </resources>

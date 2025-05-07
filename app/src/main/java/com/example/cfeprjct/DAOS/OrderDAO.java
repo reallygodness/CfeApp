@@ -38,4 +38,8 @@ public interface OrderDAO {
     @Query("SELECT * FROM orders WHERE userId = :userId ORDER BY createdAt DESC")
     LiveData<List<Order>> getOrdersByUserIdLive(String userId);
 
+    @Query("SELECT * FROM orders ORDER BY createdAt DESC")
+    List<Order> getAllSync();
+
+
 }

@@ -240,6 +240,23 @@ public class ProductDetailActivity extends AppCompatActivity {
                     ci.setUnitPrice(calculatedPrice);
                     ci.setQuantity(1);
                     db.cartItemDao().insert(ci);
+
+                    Map<String,Object> map = new HashMap<>();
+                    map.put("id",          ci.getId());
+                    map.put("userId",      userId);
+                    map.put("productType", ci.getProductType());
+                    map.put("productId",   ci.getProductId());
+                    map.put("title",       ci.getTitle());
+                    map.put("imageUrl",    ci.getImageUrl());
+                    map.put("size",        ci.getSize());
+                    map.put("unitPrice",   ci.getUnitPrice());
+                    map.put("quantity",    ci.getQuantity());
+
+                    firestore.collection("carts")
+                            .document(userId)
+                            .collection("items")
+                            .document(String.valueOf(ci.getId()))
+                            .set(map);
                 }
                 runOnUiThread(() ->
                         Toast.makeText(this, "Добавлено в корзину", Toast.LENGTH_SHORT).show()
