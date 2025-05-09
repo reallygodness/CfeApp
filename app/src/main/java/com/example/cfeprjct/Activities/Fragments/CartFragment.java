@@ -2,6 +2,8 @@ package com.example.cfeprjct.Activities.Fragments;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Geocoder;
 import android.os.Bundle;
@@ -58,6 +60,8 @@ import java.util.concurrent.Executors;
 
 public class CartFragment extends Fragment {
     private static final int REQ_LOC = 1001;
+    private static final String PREFS = "app_prefs";
+    private static final String KEY_LAST_USER = "currentUserId";
 
     private AppDatabase db;
     private AddressDAO addressDAO;
@@ -71,9 +75,13 @@ public class CartFragment extends Fragment {
 
     private CartAdapter cartAdapter;
     private RecyclerView rvCart;
-    private TextView tvTotal, tvAddress;
+    private TextView tvTotal, tvAddress, tvEmptyCart;
     private ImageView btnEditAddress;
     private MaterialButton btnCheckout;
+
+    private final Set<Integer> previousCartItemIds = new HashSet<>();
+    private boolean hasAddress = false;
+    private boolean cartLoadedFromCloud = false;
 
     @Nullable @Override
     public View onCreateView(@NonNull LayoutInflater inflater,
@@ -81,76 +89,55 @@ public class CartFragment extends Fragment {
                              @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_cart, container, false);
 
-        // 1) Инициализируем БД, DAO и сервисы
+        // 1) Инициализация БД, DAO и сервисов
         db = AppDatabase.getInstance(requireContext());
-        addressDAO        = db.addressDAO();
-        orderDAO          = db.orderDAO();
-        orderedDrinkDAO   = db.orderedDrinkDAO();
-        orderedDishDAO    = db.orderedDishDAO();
+        addressDAO = db.addressDAO();
+        orderDAO = db.orderDAO();
+        orderedDrinkDAO = db.orderedDrinkDAO();
+        orderedDishDAO = db.orderedDishDAO();
         orderedDessertDAO = db.orderedDessertDAO();
-        orderStatusDAO    = db.orderStatusDAO();
-        firestore         = FirebaseFirestore.getInstance();
+        orderStatusDAO = db.orderStatusDAO();
+        firestore = FirebaseFirestore.getInstance();
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireContext());
 
-        // 2) Привязываем view
-        rvCart          = view.findViewById(R.id.rvCart);
-        tvTotal         = view.findViewById(R.id.tvCartTotal);
-        tvAddress       = view.findViewById(R.id.tvCartAddress);
-        btnEditAddress  = view.findViewById(R.id.btnEditAddress);
-        btnCheckout     = view.findViewById(R.id.btnCheckout);
+        String userId = AuthUtils.getLoggedInUserId(requireContext());
 
-        // 3) RecyclerView
+        // 2) Очищаем локальную корзину при смене пользователя
+        SharedPreferences prefs = requireContext()
+                .getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String lastUser = prefs.getString(KEY_LAST_USER, null);
+        if (userId != null && !userId.equals(lastUser)) {
+            Executors.newSingleThreadExecutor().execute(db.cartItemDao()::clearAll);
+            prefs.edit().putString(KEY_LAST_USER, userId).apply();
+        }
+
+        // 3) View binding
+        rvCart = view.findViewById(R.id.rvCart);
+        tvTotal = view.findViewById(R.id.tvCartTotal);
+        tvAddress = view.findViewById(R.id.tvCartAddress);
+        btnEditAddress = view.findViewById(R.id.btnEditAddress);
+        btnCheckout = view.findViewById(R.id.btnCheckout);
+        tvEmptyCart = view.findViewById(R.id.tvEmptyCart);
+
+        // 4) RecyclerView
         rvCart.setLayoutManager(new LinearLayoutManager(requireContext()));
         cartAdapter = new CartAdapter(db.cartItemDao());
         rvCart.setAdapter(cartAdapter);
 
-        // 4) Адрес (из каталога)
-        String userId = AuthUtils.getLoggedInUserId(requireContext());
-        if (userId != null) {
-            new Thread(() -> {
-                Address local = addressDAO.getAddressByUserId(userId);
-                if (local != null) {
-                    String fmt = local.getCity()
-                            + ", " + local.getStreet()
-                            + " " + local.getHouse()
-                            + (local.getApartment().isEmpty() ? "" : ", кв. " + local.getApartment());
-                    requireActivity().runOnUiThread(() -> tvAddress.setText(fmt));
-                } else {
-                    fetchAddressFromFirestore(userId);
-                }
-            }).start();
+        // 5) Загрузка адреса
+        loadAddress(userId);
 
-            // если БД пуста — подгружаем корзину из Firestore
-            Executors.newSingleThreadExecutor().execute(() -> {
-                List<CartItem> localItems = db.cartItemDao().getAllSync();
-                if (localItems.isEmpty()) {
-                    firestore.collection("carts")
-                            .document(userId)
-                            .collection("items")
-                            .get()
-                            .addOnSuccessListener(query -> {
-                                List<CartItem> toInsert = new ArrayList<>();
-                                for (DocumentSnapshot doc : query.getDocuments()) {
-                                    CartItem ci = doc.toObject(CartItem.class);
-                                    if (ci != null) toInsert.add(ci);
-                                }
-                                Executors.newSingleThreadExecutor().execute(() -> {
-                                    for (CartItem ci : toInsert) {
-                                        db.cartItemDao().insert(ci);
-                                    }
-                                });
-                            });
-                }
-            });
-        } else {
-            tvAddress.setText("Введите адрес");
+        // 6) Первичная подгрузка корзины из Firestore (только один раз)
+        if (userId != null && !cartLoadedFromCloud) {
+            loadCartFromCloud(userId);
         }
 
+        // 7) Обработчики кликов по адресу
         View.OnClickListener addrClick = v -> {
             if (ContextCompat.checkSelfPermission(requireContext(),
-                    Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
-                    || ContextCompat.checkSelfPermission(requireContext(),
-                    Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED ||
+                    ContextCompat.checkSelfPermission(requireContext(),
+                            Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 requestPermissions(new String[]{
                         Manifest.permission.ACCESS_COARSE_LOCATION,
                         Manifest.permission.ACCESS_FINE_LOCATION
@@ -164,146 +151,86 @@ public class CartFragment extends Fragment {
                 new EditAddressDialogFragment().show(getChildFragmentManager(), "editAddr")
         );
 
-        // 5) Подписываемся на корзину и считаем итог
-        LiveData<List<CartItem>> live = db.cartItemDao().getAll();
-        live.observe(getViewLifecycleOwner(), items -> {
-            cartAdapter.submitList(items);
-            int sum = 0;
-            for (CartItem ci : items) sum += ci.getQuantity() * ci.getUnitPrice();
-            if (sum > 0) {
-                tvTotal.setText(String.format(Locale.getDefault(),
-                        "Итог: %d ₽ (доставка 100 ₽)", sum + 100));
-                btnCheckout.setEnabled(true);
-            } else {
-                tvTotal.setText("Итог: 0 ₽");
-                btnCheckout.setEnabled(false);
-            }
+        // 8) Подписываемся на корзину и синхронизируем
+        observeCart(userId);
 
-            // **Синхронизация корзины в Firestore**
-            if (userId != null) {
-                syncCartItemsToFirestore(userId, items);
-            }
-        });
-
-        // 6) Оформление заказа
+        // 9) Оформление заказа
         btnCheckout.setOnClickListener(v -> {
-            new Thread(() -> {
-                List<CartItem> items = db.cartItemDao().getAllSync();
-                if (items.isEmpty()) return;
-
-                long now = System.currentTimeMillis();
-                OrderStatus cook = orderStatusDAO.getByName("В готовке");
-                int cookId = cook != null ? cook.getStatusId() : 1;
-
-                // считаем сумму + доставка
-                float total = 100f; // 100₽ за доставку
-                for (CartItem ci : items) {
-                    total += ci.getQuantity() * ci.getUnitPrice();
-                }
-
-                // создаём Order
-                Order order = new Order();
-                order.setUserId(userId);
-                order.setCreatedAt(now);
-                order.setStatusId(cookId);
-                order.setTotalPrice(total);
-                long newId = orderDAO.insertOrder(order);
-                int orderId = (int) newId;
-
-                // переносим позиции из корзины, передавая size
-                for (CartItem ci : items) {
-                    switch (ci.getProductType()) {
-                        case "drink":
-                            OrderedDrink od = new OrderedDrink();
-                            od.setOrderId(orderId);
-                            od.setDrinkId(ci.getProductId());
-                            od.setQuantity(ci.getQuantity());
-                            od.setSize(ci.getSize());
-                            orderedDrinkDAO.insert(od);
-                            break;
-                        case "dish":
-                            OrderedDish od2 = new OrderedDish();
-                            od2.setOrderId(orderId);
-                            od2.setDishId(ci.getProductId());
-                            od2.setQuantity(ci.getQuantity());
-                            od2.setSize(ci.getSize());
-                            orderedDishDAO.insert(od2);
-                            break;
-                        default:
-                            OrderedDessert od3 = new OrderedDessert();
-                            od3.setOrderId(orderId);
-                            od3.setDessertId(ci.getProductId());
-                            od3.setQuantity(ci.getQuantity());
-                            od3.setSize(ci.getSize());
-                            orderedDessertDAO.insert(od3);
-                            break;
-                    }
-                }
-
-                // очищаем корзину
-                db.cartItemDao().clearAll();
-
-                // UI: toast, переключение на Заказы и смена статуса
-                new Handler(requireActivity().getMainLooper()).post(() -> {
-                    Toast.makeText(requireContext(), "Заказ оформлен", Toast.LENGTH_SHORT).show();
-                    ((MainActivity) requireActivity())
-                            .getBottomNavigationView()
-                            .setSelectedItemId(R.id.nav_orders);
-
-                    // через 20 минут переводим в "Доставлен"
-                    new Handler().postDelayed(() -> {
-                        Order o = orderDAO.getOrderById(orderId);
-                        if (o != null && o.getStatusId() == cookId) {
-                            OrderStatus done = orderStatusDAO.getByName("Доставлен");
-                            if (done != null) {
-                                o.setStatusId(done.getStatusId());
-                                orderDAO.updateOrder(o);
-                            }
-                        }
-                    }, 20 * 60_000);
-                });
-            }).start();
+            if (!hasAddress) {
+                Toast.makeText(requireContext(),
+                        "Введите адрес для заказа", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            syncStatusesThenCheckout();
         });
 
         return view;
     }
 
-    /** Синхронизирует локальные items → Firestore под carts/{userId}/items/{itemId} */
-    private void syncCartItemsToFirestore(String userId, List<CartItem> items) {
-        CollectionReference col = firestore
-                .collection("carts")
-                .document(userId)
-                .collection("items");
-
-        col.get().addOnSuccessListener(snapshot -> {
-            // собираем все удалённые серверные ID
-            Set<String> remoteIds = new HashSet<>();
-            for (DocumentSnapshot doc : snapshot.getDocuments()) {
-                remoteIds.add(doc.getId());
-            }
-
-            // для каждого локального элемента записываем/обновляем и убираем из remoteIds
-            for (CartItem ci : items) {
-                String docId = String.valueOf(ci.getId());
-                Map<String, Object> data = new HashMap<>();
-                data.put("id",          ci.getId());
-                data.put("productType", ci.getProductType());
-                data.put("productId",   ci.getProductId());
-                data.put("title",       ci.getTitle());
-                data.put("imageUrl",    ci.getImageUrl());
-                data.put("size",        ci.getSize());
-                data.put("unitPrice",   ci.getUnitPrice());
-                data.put("quantity",    ci.getQuantity());
-
-                col.document(docId).set(data);
-                remoteIds.remove(docId);
-            }
-
-            // всё, что осталось — давно удалено локально, удаляем из Firestore
-            for (String orphan : remoteIds) {
-                col.document(orphan).delete();
+    // ——— ADDRESS LOGIC ———
+    private void loadAddress(@Nullable String userId) {
+        if (userId == null) {
+            tvAddress.setText("Введите адрес");
+            hasAddress = false;
+            updateCheckoutState(0);
+            return;
+        }
+        Executors.newSingleThreadExecutor().execute(() -> {
+            Address local = addressDAO.getAddressByUserId(userId);
+            if (local != null) {
+                String fmt = local.getCity() + ", " + local.getStreet() + " " + local.getHouse()
+                        + (local.getApartment().isEmpty() ? "" : ", кв. " + local.getApartment());
+                requireActivity().runOnUiThread(() -> {
+                    tvAddress.setText(fmt);
+                    hasAddress = true;
+                    updateCheckoutState(0);
+                });
+            } else {
+                requireActivity().runOnUiThread(() -> {
+                    tvAddress.setText("Введите адрес");
+                    hasAddress = false;
+                    updateCheckoutState(0);
+                });
             }
         });
+    }
+
+    private void saveAndSyncAddress(String city, String street, String house) {
+        String userId = AuthUtils.getLoggedInUserId(requireContext());
+        if (userId == null) return;
+        new Thread(() -> {
+            Address ex = addressDAO.getAddressByUserId(userId);
+            int addrId;
+            if (ex != null) {
+                ex.setCity(city); ex.setStreet(street); ex.setHouse(house); ex.setApartment("");
+                addressDAO.updateAddress(ex);
+                addrId = ex.getAddressId();
+            } else {
+                Address a = new Address();
+                a.setUserId(userId);
+                a.setCity(city); a.setStreet(street); a.setHouse(house); a.setApartment("");
+                addrId = (int) addressDAO.insertAddress(a);
+            }
+            Map<String, Object> m = new HashMap<>();
+            m.put("addressId", addrId);
+            m.put("userId", userId);
+            m.put("city", city);
+            m.put("street", street);
+            m.put("house", house);
+            m.put("apartment", "");
+            firestore.collection("addresses")
+                    .document(String.valueOf(addrId))
+                    .set(m);
+            firestore.collection("users")
+                    .document(userId)
+                    .update("addressId", addrId);
+            String fmt = city + ", " + street + " " + house;
+            requireActivity().runOnUiThread(() -> {
+                tvAddress.setText(fmt);
+                hasAddress = true;
+                updateCheckoutState(0);
+            });
+        }).start();
     }
 
     @SuppressLint("MissingPermission")
@@ -333,72 +260,175 @@ public class CartFragment extends Fragment {
         }).start();
     }
 
-    private void saveAndSyncAddress(String city, String street, String house) {
-        String userId = AuthUtils.getLoggedInUserId(requireContext());
-        if (userId == null) return;
-        new Thread(() -> {
-            Address ex = addressDAO.getAddressByUserId(userId);
-            int addrId;
-            if (ex != null) {
-                ex.setCity(city);
-                ex.setStreet(street);
-                ex.setHouse(house);
-                ex.setApartment("");
-                addressDAO.updateAddress(ex);
-                addrId = ex.getAddressId();
+    // ——— CART SYNC LOGIC ———
+    private void loadCartFromCloud(String userId) {
+        Executors.newSingleThreadExecutor().execute(() -> {
+            List<CartItem> local = db.cartItemDao().getAllSync();
+            if (local.isEmpty()) {
+                firestore.collection("carts").document(userId)
+                        .collection("items").get()
+                        .addOnSuccessListener(query -> {
+                            List<CartItem> toInsert = new ArrayList<>();
+                            for (DocumentSnapshot d : query.getDocuments()) {
+                                CartItem ci = d.toObject(CartItem.class);
+                                if (ci != null) toInsert.add(ci);
+                            }
+                            Executors.newSingleThreadExecutor().execute(() -> {
+                                for (CartItem ci : toInsert) db.cartItemDao().insert(ci);
+                                cartLoadedFromCloud = true;
+                            });
+                        });
             } else {
-                Address a = new Address();
-                a.setUserId(userId);
-                a.setCity(city);
-                a.setStreet(street);
-                a.setHouse(house);
-                a.setApartment("");
-                addrId = (int)addressDAO.insertAddress(a);
+                cartLoadedFromCloud = true;
             }
-            Map<String,Object> map = new HashMap<>();
-            map.put("addressId",addrId);
-            map.put("userId",   userId);
-            map.put("city",     city);
-            map.put("street",   street);
-            map.put("house",    house);
-            map.put("apartment","");
-            firestore.collection("addresses")
-                    .document(String.valueOf(addrId)).set(map);
-            firestore.collection("users")
-                    .document(userId).update("addressId", addrId);
-            String fmt = city + ", " + street + " " + house;
-            requireActivity().runOnUiThread(() -> tvAddress.setText(fmt));
+        });
+    }
+
+    private void observeCart(String userId) {
+        LiveData<List<CartItem>> live = db.cartItemDao().getAll();
+        live.observe(getViewLifecycleOwner(), items -> {
+            cartAdapter.submitList(items);
+
+            // UI: показываем/скрываем «Корзина пуста» и кнопку/итог
+            int sum = 0;
+            for (CartItem ci : items) sum += ci.getQuantity() * ci.getUnitPrice();
+            if (items.isEmpty()) {
+                tvEmptyCart.setVisibility(View.VISIBLE);
+                tvTotal.setVisibility(View.GONE);
+                btnCheckout.setVisibility(View.GONE);
+
+                // ————— При пустой корзине удаляем все документы в Firestore —————
+                firestore.collection("carts")
+                        .document(userId)
+                        .collection("items")
+                        .get()
+                        .addOnSuccessListener(snapshot -> {
+                            for (DocumentSnapshot doc : snapshot.getDocuments()) {
+                                doc.getReference().delete();
+                            }
+                            // сбросим список ранее синхронизированных ID
+                            previousCartItemIds.clear();
+                        });
+                // —————————————————————————————————————————————————————————————
+
+            } else {
+                tvEmptyCart.setVisibility(View.GONE);
+                tvTotal.setVisibility(View.VISIBLE);
+                btnCheckout.setVisibility(View.VISIBLE);
+                tvTotal.setText(String.format(Locale.getDefault(),
+                        "Итог: %d ₽ (доставка 100 ₽)", sum + 100));
+                updateCheckoutState(sum);
+
+                // Синхронизируем по-элементно только если есть что синхронизировать
+                Executors.newSingleThreadExecutor().execute(() ->
+                        syncCartItemsToFirestore(userId, items)
+                );
+            }
+        });
+    }
+
+    private void syncCartItemsToFirestore(String userId, List<CartItem> items) {
+        CollectionReference col = firestore.collection("carts")
+                .document(userId)
+                .collection("items");
+        Set<Integer> newIds = new HashSet<>();
+        for (CartItem ci : items) {
+            newIds.add(ci.getId());
+            if (!previousCartItemIds.contains(ci.getId())) {
+                Map<String,Object> m = new HashMap<>();
+                m.put("id",            ci.getId());
+                m.put("productType",   ci.getProductType());
+                m.put("productId",     ci.getProductId());
+                m.put("title",         ci.getTitle());
+                m.put("imageUrl",      ci.getImageUrl());
+                m.put("size",          ci.getSize());
+                m.put("unitPrice",     ci.getUnitPrice());
+                m.put("quantity",      ci.getQuantity());
+                col.document(String.valueOf(ci.getId())).set(m);
+            }
+        }
+        for (Integer oldId : previousCartItemIds) {
+            if (!newIds.contains(oldId)) {
+                col.document(String.valueOf(oldId)).delete();
+            }
+        }
+        previousCartItemIds.clear();
+        previousCartItemIds.addAll(newIds);
+    }
+
+    // ——— ORDER CREATION LOGIC ———
+    private void syncStatusesThenCheckout() {
+        new Thread(() -> {
+            List<OrderStatus> stats = orderStatusDAO.getAllStatuses();
+            if (stats.isEmpty()) {
+                firestore.collection("order_statuses").get()
+                        .addOnSuccessListener(q -> Executors.newSingleThreadExecutor().execute(() -> {
+                            for (DocumentSnapshot d : q.getDocuments()) {
+                                OrderStatus st = new OrderStatus();
+                                st.setStatusId(d.getLong("statusId").intValue());
+                                st.setStatusName(d.getString("statusName"));
+                                orderStatusDAO.insert(st);
+                            }
+                            performCheckout();
+                        }));
+            } else {
+                performCheckout();
+            }
         }).start();
     }
 
-    private void fetchAddressFromFirestore(String userId) {
-        firestore.collection("users")
+    private void performCheckout() {
+        List<CartItem> items = db.cartItemDao().getAllSync();
+        if (items.isEmpty() || !hasAddress) return;
+
+        long now = System.currentTimeMillis();
+        OrderStatus cook = orderStatusDAO.getByName("В готовке");
+        int cookId = cook != null ? cook.getStatusId() : 1;
+        float total = 100f;
+        for (CartItem ci : items) total += ci.getQuantity() * ci.getUnitPrice();
+
+        Order order = new Order();
+        order.setUserId(AuthUtils.getLoggedInUserId(requireContext()));
+        order.setCreatedAt(now);
+        order.setStatusId(cookId);
+        order.setTotalPrice(total);
+        int orderId = (int)orderDAO.insertOrder(order);
+
+        // сохраняем позиции заказа (пример — напитки; блюда/десерты аналогично)
+        for (CartItem ci : items) {
+            OrderedDrink od = new OrderedDrink();
+            od.setOrderId(orderId);
+            od.setDrinkId(ci.getProductId());
+            od.setQuantity(ci.getQuantity());
+            od.setSize(ci.getSize());
+            orderedDrinkDAO.insert(od);
+        }
+
+        // Очищаем корзину локально и на сервере
+        db.cartItemDao().clearAll();
+        clearCartAndCloud(AuthUtils.getLoggedInUserId(requireContext()));
+
+        new Handler(requireActivity().getMainLooper()).post(() -> {
+            Toast.makeText(requireContext(),
+                    "Заказ оформлен", Toast.LENGTH_SHORT).show();
+            ((MainActivity)requireActivity()).getBottomNavigationView()
+                    .setSelectedItemId(R.id.nav_orders);
+            // далее — смена статуса через 20 минут…
+        });
+    }
+
+    private void clearCartAndCloud(String userId) {
+        CollectionReference col = firestore.collection("carts")
                 .document(userId)
-                .get().addOnSuccessListener(userDoc -> {
-                    if (!userDoc.exists() || !userDoc.contains("addressId")) return;
-                    Long addrId = userDoc.getLong("addressId");
-                    if (addrId == null) return;
-                    firestore.collection("addresses")
-                            .document(String.valueOf(addrId))
-                            .get().addOnSuccessListener(addrDoc -> {
-                                if (!addrDoc.exists()) return;
-                                String city = addrDoc.getString("city");
-                                String street = addrDoc.getString("street");
-                                String house = addrDoc.getString("house");
-                                String apt = addrDoc.getString("apartment");
-                                String fmt = city + ", " + street + " " + house +
-                                        (apt != null && !apt.isEmpty() ? ", кв. " + apt : "");
-                                tvAddress.setText(fmt);
-                                new Thread(() -> {
-                                    Address a = new Address();
-                                    a.setUserId(userId);
-                                    a.setCity(city);
-                                    a.setStreet(street);
-                                    a.setHouse(house);
-                                    a.setApartment(apt != null ? apt : "");
-                                    addressDAO.insertAddress(a);
-                                }).start();
-                            });
-                });
+                .collection("items");
+        col.get().addOnSuccessListener(snap -> {
+            for (DocumentSnapshot d : snap.getDocuments()) {
+                col.document(d.getId()).delete();
+            }
+        });
+    }
+
+    private void updateCheckoutState(int sum) {
+        btnCheckout.setEnabled(sum > 0 && hasAddress);
     }
 }

@@ -19,4 +19,10 @@ public interface OrderedDishDAO {
 
     @Query("SELECT * FROM ordered_dishes WHERE orderId = :orderId")
     List<OrderedDish> getByOrderId(int orderId);
+
+    @Query("DELETE FROM ordered_dishes WHERE orderId = :orderId")
+    void deleteByOrderId(int orderId);
+
+    @Query("DELETE FROM ordered_dishes")
+    void clearAll();
 }

@@ -42,6 +42,18 @@
         android:layout_weight="1"
         android:overScrollMode="never"/>
 
+    <!-- пустое состояние -->
+    <TextView
+        android:id="@+id/tvEmptyCart"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Корзина пуста"
+        android:gravity="center"
+        android:visibility="gone"
+        android:textSize="18sp"
+        android:textColor="@color/gray"
+        android:padding="16dp"/>
+
     <!-- Итоговая сумма -->
     <TextView
         android:id="@+id/tvCartTotal"

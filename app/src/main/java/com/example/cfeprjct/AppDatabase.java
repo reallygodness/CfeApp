@@ -238,7 +238,7 @@ public abstract class AppDatabase extends RoomDatabase {
 
             // 2) Заполняем начальными значениями
             db.execSQL("INSERT INTO `order_statuses` (statusName) VALUES " +
-                    "('В готовке'),('В доставке'),('Доставлен')");
+                    "('В готовке'),('В доставке'),('Доставлен'),('Доставлен и оплачен')");
 
             // 3) Пересоздаём таблицы позиций заказа
             db.execSQL("DROP TABLE IF EXISTS `ordered_drinks`");
@@ -317,7 +317,15 @@ public abstract class AppDatabase extends RoomDatabase {
                             MIGRATION_11_12,
                             MIGRATION_12_13,
                             MIGRATION_13_14
-                    )
+                    ).addCallback(new Callback() {
+                        @Override
+                        public void onCreate(@NonNull SupportSQLiteDatabase db) {
+                            super.onCreate(db);
+                            // seed statuses
+                            db.execSQL("INSERT INTO `order_statuses` (statusName) VALUES " +
+                                    "('В готовке'),('В доставке'),('Доставлен')");
+                        }
+                    })
                     .build();
         }
         return instance;
