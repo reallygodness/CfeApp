@@ -4,21 +4,19 @@ import android.content.Context;
 import android.util.Base64;
 import android.util.Log;
 
-import androidx.room.Room;
-
-import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 public class UserRepository {
 
     private final AppDatabase db;
-    private final UserDAO userDAO;
+    private final UserDAO     userDAO;
     private final FirebaseFirestore firestore;
 
     public interface AuthCallback {
@@ -27,125 +25,150 @@ public class UserRepository {
     }
 
     public UserRepository(Context context) {
-        // Инициализируем локальную базу данных и DAO
-        db = AppDatabase.getInstance(context.getApplicationContext());
-        userDAO = db.userDAO();
-        // Инициализируем Firestore
+        db       = AppDatabase.getInstance(context.getApplicationContext());
+        userDAO  = db.userDAO();
         firestore = FirebaseFirestore.getInstance();
     }
 
     /**
      * Регистрация пользователя.
-     * Перед сохранением пароль хэшируется с использованием PBKDF2, а userId генерируется автоматически.
+     * Пароль хэшируется через PBKDF2, а userId генерируется
+     * автоматически Firestore при создании нового документа.
      */
-    public void registerUser(String firstName, String lastName, String email, String phone, String password, AuthCallback callback) {
+    public void registerUser(String firstName,
+                             String lastName,
+                             String email,
+                             String phone,
+                             String password,
+                             AuthCallback callback) {
+
         new Thread(() -> {
+            // 1) Проверяем уникальность email и телефона в локальной БД
             if (userDAO.getUserByEmail(email) != null) {
-                callback.onFailure("Пользователь с таким email уже зарегистрирован!");
+                callback.onFailure("Пользователь с таким email уже есть");
                 return;
             }
             if (userDAO.getUserByPhoneNumber(phone) != null) {
-                callback.onFailure("Пользователь с таким номером уже зарегистрирован!");
+                callback.onFailure("Пользователь с таким номером уже есть");
                 return;
             }
+
             try {
-                // Генерируем соль и хэшируем пароль
+                // 2) Хэшируем пароль с солью
                 byte[] salt = PasswordUtils.generateSalt();
                 String hashedPassword = PasswordUtils.hashPassword(password, salt);
-                // Создаем нового пользователя с хэшированным паролем
+
+                // 3) Генерируем авто-ID в Firestore
+                CollectionReference usersColl = firestore.collection("users");
+                DocumentReference newUserRef = usersColl.document();  // <- авто-ID
+                String generatedId = newUserRef.getId();
+
+                // 4) Создаём объект User и сохраняем локально
                 User newUser = new User(firstName, lastName, email, phone, hashedPassword);
-                userDAO.insertUser(newUser);  // Сохраняем в Room
+                newUser.setUserId(generatedId);
+                userDAO.insertUser(newUser);
 
-                // Подготавливаем данные для Firestore
-                Map<String, Object> userMap = new HashMap<>();
-                userMap.put("userId", newUser.getUserId());
-                userMap.put("firstName", newUser.getFirstName());
-                userMap.put("lastName", newUser.getLastName());
-                userMap.put("email", newUser.getEmail());
-                userMap.put("phoneNumber", newUser.getPhoneNumber());
-                userMap.put("password", newUser.getPassword());  // Добавлено сохранение пароля
-
+                // 5) Собираем поля для Firestore
+                Map<String,Object> userMap = new HashMap<>();
+                userMap.put("userId",      generatedId);
+                userMap.put("firstName",   firstName);
+                userMap.put("lastName",    lastName);
+                userMap.put("email",       email);
+                userMap.put("phoneNumber", phone);
+                userMap.put("password",    hashedPassword);
                 if (newUser.getProfileImage() != null) {
-                    userMap.put("profileImage", Base64.encodeToString(newUser.getProfileImage(), Base64.DEFAULT));
+                    String b64 = Base64.encodeToString(
+                            newUser.getProfileImage(),
+                            Base64.DEFAULT
+                    );
+                    userMap.put("profileImage", b64);
                 }
 
-                firestore.collection("users").document(newUser.getUserId())
+                // 6) Записываем в документ с авто-ID
+                newUserRef
                         .set(userMap)
                         .addOnSuccessListener(aVoid -> {
-                            Log.d("UserRepository", "Пользователь успешно зарегистрирован в Firestore");
-                            callback.onSuccess(newUser.getUserId());
+                            Log.d("UserRepo", "Успешная регистрация в Firestore");
+                            callback.onSuccess(generatedId);
                         })
                         .addOnFailureListener(e -> {
-                            Log.e("UserRepository", "Ошибка регистрации в Firestore", e);
-                            callback.onFailure("Ошибка регистрации в Firestore: " + e.getMessage());
+                            Log.e("UserRepo", "Ошибка записи в Firestore", e);
+                            callback.onFailure("Ошибка регистрации: " + e.getMessage());
                         });
+
             } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
                 callback.onFailure("Ошибка хэширования пароля: " + e.getMessage());
             }
         }).start();
     }
 
-
     /**
-     * Авторизация пользователя.
-     * По номеру телефона ищется пользователь, а затем проверяется введенный пароль через PBKDF2.
+     * Авторизация пользователя. Сначала локально, иначе — из Firestore.
      */
-    public void loginUser(String phoneNumber, String password, AuthCallback callback) {
+    public void loginUser(String phoneNumber,
+                          String password,
+                          AuthCallback callback) {
         new Thread(() -> {
-            // Попытка найти пользователя локально по номеру телефона
-            User user = userDAO.getUserByPhoneNumber(phoneNumber);
-            if (user != null) {
+            // Локальная попытка
+            User local = userDAO.getUserByPhoneNumber(phoneNumber);
+            if (local != null) {
                 try {
-                    if (PasswordUtils.verifyPassword(password, user.getPassword())) {
-                        callback.onSuccess(user.getUserId());
+                    if (PasswordUtils.verifyPassword(password, local.getPassword())) {
+                        callback.onSuccess(local.getUserId());
                     } else {
-                        callback.onFailure("Неверный номер телефона или пароль");
+                        callback.onFailure("Неверный номер или пароль");
                     }
                 } catch (Exception e) {
                     callback.onFailure("Ошибка проверки пароля: " + e.getMessage());
                 }
-            } else {
-                // Если пользователя нет в локальной базе, выполняем запрос к Firestore
-                firestore.collection("users")
-                        .whereEqualTo("phoneNumber", phoneNumber)
-                        .get()
-                        .addOnSuccessListener(querySnapshot -> {
-                            if (!querySnapshot.isEmpty()) {
-                                // Предполагается, что найден ровно один документ
-                                DocumentSnapshot doc = querySnapshot.getDocuments().get(0);
-                                String storedPassword = doc.getString("password");
-                                try {
-                                    if (PasswordUtils.verifyPassword(password, storedPassword)) {
-                                        // Создаем нового пользователя на основе данных Firestore
-                                        User firestoreUser = new User();
-                                        firestoreUser.setUserId(doc.getString("userId"));
-                                        firestoreUser.setFirstName(doc.getString("firstName"));
-                                        firestoreUser.setLastName(doc.getString("lastName"));
-                                        firestoreUser.setEmail(doc.getString("email"));
-                                        firestoreUser.setPhoneNumber(phoneNumber);
-                                        firestoreUser.setPassword(storedPassword); // Хэш пароля из Firestore
-                                        String profileImageBase64 = doc.getString("profileImage");
-                                        if (profileImageBase64 != null) {
-                                            firestoreUser.setProfileImage(Base64.decode(profileImageBase64, Base64.DEFAULT));
-                                        }
-                                        // Сохраняем пользователя в локальную базу
-                                        new Thread(() -> {
-                                            userDAO.insertUser(firestoreUser);
-                                            callback.onSuccess(firestoreUser.getUserId());
-                                        }).start();
-                                    } else {
-                                        callback.onFailure("Неверный номер телефона или пароль");
-                                    }
-                                } catch (Exception e) {
-                                    callback.onFailure("Ошибка проверки пароля: " + e.getMessage());
-                                }
-                            } else {
-                                callback.onFailure("Пользователь не найден");
-                            }
-                        })
-                        .addOnFailureListener(e -> callback.onFailure("Ошибка подключения к Firestore: " + e.getMessage()));
+                return;
             }
+            // Из облака
+            firestore.collection("users")
+                    .whereEqualTo("phoneNumber", phoneNumber)
+                    .get()
+                    .addOnSuccessListener(qs -> {
+                        if (qs.isEmpty()) {
+                            callback.onFailure("Пользователь не найден");
+                            return;
+                        }
+                        DocumentReference doc = qs.getDocuments().get(0).getReference();
+                        doc.get().addOnSuccessListener(snapshot -> {
+                            String storedHash = snapshot.getString("password");
+                            try {
+                                if (!PasswordUtils.verifyPassword(password, storedHash)) {
+                                    callback.onFailure("Неверный номер или пароль");
+                                    return;
+                                }
+                                // Собираем объект
+                                User cloudUser = new User();
+                                cloudUser.setUserId(snapshot.getString("userId"));
+                                cloudUser.setFirstName(snapshot.getString("firstName"));
+                                cloudUser.setLastName(snapshot.getString("lastName"));
+                                cloudUser.setEmail(snapshot.getString("email"));
+                                cloudUser.setPhoneNumber(phoneNumber);
+                                cloudUser.setPassword(storedHash);
+                                String pi = snapshot.getString("profileImage");
+                                if (pi != null) {
+                                    cloudUser.setProfileImage(
+                                            Base64.decode(pi, Base64.DEFAULT)
+                                    );
+                                }
+                                // Сохраняем локально
+                                new Thread(() -> {
+                                    userDAO.insertUser(cloudUser);
+                                    callback.onSuccess(cloudUser.getUserId());
+                                }).start();
+                            } catch (Exception ex) {
+                                callback.onFailure("Ошибка проверки пароля: " + ex.getMessage());
+                            }
+                        }).addOnFailureListener(e ->
+                                callback.onFailure("Ошибка чтения из облака: " + e.getMessage())
+                        );
+                    })
+                    .addOnFailureListener(e ->
+                            callback.onFailure("Ошибка соединения: " + e.getMessage())
+                    );
         }).start();
     }
-
 }

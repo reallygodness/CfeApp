@@ -20,4 +20,11 @@ public interface OrderedDrinkDAO {
     /** Получить все напитки, привязанные к конкретному заказу */
     @Query("SELECT * FROM ordered_drinks WHERE orderId = :orderId")
     List<OrderedDrink> getByOrderId(int orderId);
+
+    // вот этот метод нужно добавить:
+    @Query("DELETE FROM ordered_drinks WHERE orderId = :orderId")
+    void deleteByOrderId(int orderId);
+
+    @Query("DELETE FROM ordered_drinks")
+    void clearAll();
 }

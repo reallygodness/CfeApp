@@ -9,4 +9,15 @@
         android:id="@+id/rvOrders"
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
+
+    <TextView
+        android:id="@+id/tvEmptyOrders"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Вы ещё не осуществляли заказ"
+        android:gravity="center"
+        android:visibility="gone"
+        android:textSize="18sp"
+        android:textColor="@color/gray"
+        android:padding="16dp"/>
 </LinearLayout>

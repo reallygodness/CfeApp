@@ -19,7 +19,7 @@
         <!-- FrameLayout с картинкой и контейнером для рейтинга -->
         <FrameLayout
             android:layout_width="match_parent"
-            android:layout_height="150dp"
+            android:layout_height="210dp"
             android:background="@drawable/bg_image_rounded"
             android:clipToOutline="true">
 
