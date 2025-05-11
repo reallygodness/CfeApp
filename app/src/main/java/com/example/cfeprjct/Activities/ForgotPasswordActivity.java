@@ -14,62 +14,94 @@ import com.example.cfeprjct.R;
 import com.example.cfeprjct.User;
 import com.example.cfeprjct.UserDAO;
 import com.example.cfeprjct.api.EmailSender;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
+
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Random;
 
 public class ForgotPasswordActivity extends AppCompatActivity {
+    private EditText emailEditText;
+    private Button sendCodeButton;
 
-    private EditText etEmail;
-    private Button btnResetPassword;
+    private FirebaseFirestore firestore;
+    private UserDAO userDAO;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_forgot_password);
 
-        etEmail = findViewById(R.id.etEmail);
-        btnResetPassword = findViewById(R.id.btnsendcode);
+        emailEditText  = findViewById(R.id.etEmail);
+        sendCodeButton = findViewById(R.id.btnsendcode);
 
-        btnResetPassword.setOnClickListener(v -> sendResetCode());
+        firestore = FirebaseFirestore.getInstance();
+        userDAO   = AppDatabase.getInstance(this).userDAO();
+
+        sendCodeButton.setOnClickListener(v -> sendResetCode());
     }
 
     private void sendResetCode() {
-        String email = etEmail.getText().toString().trim();
-        if (!AuthUtils.isValidEmail(email)) {
-            Toast.makeText(this, "Введите корректный email", Toast.LENGTH_SHORT).show();
+        String email = emailEditText.getText().toString().trim();
+        if (email.isEmpty()) {
+            Toast.makeText(this, "Введите email", Toast.LENGTH_SHORT).show();
             return;
         }
 
         new Thread(() -> {
-            // Получаем локальную базу и UserDAO
-            AppDatabase db = AppDatabase.getInstance(getApplicationContext());
-            UserDAO userDAO = db.userDAO();
-            // Ищем пользователя по email
             User user = userDAO.getUserByEmail(email);
-
-            if (user != null) {
-                // Генерируем код восстановления
-                String resetCode = AuthUtils.generateResetCode();
-                // Обновляем код восстановления в локальной базе (и, возможно, синхронизируем с Firestore, если такой механизм реализован)
-                userDAO.updateResetCode(email, resetCode);
-
-                // Отправляем письмо с кодом (EmailSender — твой класс для отправки email)
-                boolean emailSent = EmailSender.sendEmail(email, "Восстановление пароля", "Ваш код: " + resetCode);
-                runOnUiThread(() -> {
-                    if (emailSent) {
-                        Toast.makeText(ForgotPasswordActivity.this, "Код отправлен на email", Toast.LENGTH_SHORT).show();
-                        // Переходим на активность для подтверждения кода
-                        Intent intent = new Intent(ForgotPasswordActivity.this, VerifyCodeActivity.class);
-                        intent.putExtra("email", email);
-                        startActivity(intent);
-                        finish();
-                    } else {
-                        Toast.makeText(ForgotPasswordActivity.this, "Ошибка отправки email", Toast.LENGTH_SHORT).show();
-                    }
-                });
-            } else {
+            if (user == null) {
                 runOnUiThread(() ->
-                        Toast.makeText(ForgotPasswordActivity.this, "Email не найден", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this,
+                                "Пользователь с таким email не найден",
+                                Toast.LENGTH_SHORT).show()
                 );
+                return;
             }
+
+            // получаем userId из локального профиля
+            String userId = user.getUserId();
+
+            // генерируем 6-значный код
+            String code = String.format(Locale.getDefault(),
+                    "%06d", new Random().nextInt(1_000_000));
+
+            Map<String,Object> data = new HashMap<>();
+            data.put("code",      code);
+            data.put("timestamp", System.currentTimeMillis());
+
+            firestore.collection("password_resets")
+                    .document(userId)      // документ по userId
+                    .set(data)
+                    .addOnSuccessListener(aVoid -> {
+                        // отправляем письмо
+                        EmailSender.send(
+                                email,
+                                "Код сброса пароля",
+                                "Ваш код для сброса пароля: " + code
+                        );
+
+                        runOnUiThread(() -> {
+                            Toast.makeText(this,
+                                    "Код отправлен на email",
+                                    Toast.LENGTH_SHORT).show();
+
+                            Intent i = new Intent(this, VerifyCodeActivity.class);
+                            // передаём **оба** параметра:
+                            i.putExtra("email",  email);
+                            i.putExtra("userId", userId);
+                            startActivity(i);
+                            finish();
+                        });
+                    })
+                    .addOnFailureListener(e -> runOnUiThread(() ->
+                            Toast.makeText(this,
+                                    "Ошибка при отправке кода",
+                                    Toast.LENGTH_SHORT).show()
+                    ));
+
         }).start();
     }
 }

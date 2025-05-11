@@ -156,21 +156,24 @@ public class CatalogFragment extends Fragment {
 
         CatalogSync sync = new CatalogSync(requireContext());
         sync.syncPrices(() -> {
-            // этот callback сработает, когда все prices будут загружены и записаны в Room
             if (!isAdded()) return;
-
-            // получаем текущее содержимое строки поиска
             String q = searchEditText.getText().toString().trim();
-
-            // переключаемся обратно в UI-поток и сразу загружаем все три категории
             requireActivity().runOnUiThread(() -> {
-                loadDrinks(q);
-                loadDishes(q);
-                loadDesserts(q);
+                switch (currentCategory) {
+                    case DRINKS:
+                        loadDrinks(q);
+                        break;
+                    case DISHES:
+                        loadDishes(q);
+                        break;
+                    case DESSERTS:
+                        loadDesserts(q);
+                        break;
+                }
             });
         });
 
-        // Вкладки
+        // Устанавливаем табы
         drinkTabButton.setOnClickListener(v -> {
             currentCategory = Category.DRINKS;
             updateTabStyles();
@@ -229,7 +232,8 @@ public class CatalogFragment extends Fragment {
 
         // Первоначальная стилизация и загрузка
         updateTabStyles();
-        loadDrinks("");
+        // ← ДОБАВИЛИ ЭТО: при первом старте сразу подгрузить напитки
+        loadDrinks(searchEditText.getText().toString());
 
         return view;
     }
