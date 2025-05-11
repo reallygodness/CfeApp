@@ -9,8 +9,11 @@ import com.example.cfeprjct.Entities.Dish;
 import com.example.cfeprjct.Entities.Drink;
 import com.example.cfeprjct.Entities.PriceList;
 import com.example.cfeprjct.Entities.Volume;
+import com.google.android.gms.tasks.Task;
+import com.google.android.gms.tasks.Tasks;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.QuerySnapshot;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -28,23 +31,6 @@ public class CatalogSync {
     public CatalogSync(Context ctx) {
         db = AppDatabase.getInstance(ctx.getApplicationContext());
         firestore = FirebaseFirestore.getInstance();
-    }
-
-    /**
-     * Главный метод синхронизации: сначала объёмы, потом напитки+цены, затем блюда и десерты.
-     */
-    public void syncCatalog(Callback cb) {
-        // 1) syncVolumes
-        syncVolumes(() ->
-                // 2) syncDrinks (внутри уже вызывает syncPrices)
-                syncDrinks(() ->
-                        // 3) syncDishes
-                        syncDishes(() ->
-                                // 4) syncDesserts и финальный колбэк
-                                syncDesserts(cb)
-                        )
-                )
-        );
     }
 
     /** 1) Синхронизируем напитки, а затем цены */
@@ -142,48 +128,63 @@ public class CatalogSync {
                 });
     }
 
-    /** 4) Синхронизируем прайс-лист (вызывается из syncDrinks) */
-    private void syncPrices(Callback cb) {
-        firestore.collection("price_list")
-                .get()
-                .addOnSuccessListener(qs -> {
-                    List<PriceList> prices = new ArrayList<>();
-                    for (DocumentSnapshot doc : qs) {
-                        PriceList p = new PriceList();
-                        Long itemIdLong = doc.getLong("itemId");
-                        String itemType = doc.getString("itemType");
-                        Double priceD   = doc.getDouble("price");
-                        if (itemIdLong == null || itemType == null || priceD == null) {
-                            continue;
-                        }
-                        switch (itemType) {
-                            case "drink":   p.setDrinkId(itemIdLong.intValue());   break;
-                            case "dish":    p.setDishId(itemIdLong.intValue());    break;
-                            case "dessert": p.setDessertId(itemIdLong.intValue()); break;
-                            default: continue;
-                        }
-                        p.setPrice(priceD.floatValue());
-                        Date dt = doc.getDate("date");
-                        if (dt != null) {
-                            p.setDate(dt.getTime());
-                        } else {
-                            Object raw = doc.get("date");
-                            if (raw instanceof Number) {
-                                p.setDate(((Number) raw).longValue());
-                            } else {
-                                p.setDate(System.currentTimeMillis());
+    public void syncPrices(Callback cb) {
+        // 1) Три отдельных запроса: для drinks, dishes и desserts
+        Task<QuerySnapshot> drinksTask = firestore
+                .collection("price_list")
+                .document("drinks")
+                .collection("items")
+                .get();
+
+        Task<QuerySnapshot> dishesTask = firestore
+                .collection("price_list")
+                .document("dishes")
+                .collection("items")
+                .get();
+
+        Task<QuerySnapshot> dessertsTask = firestore
+                .collection("price_list")
+                .document("desserts")
+                .collection("items")
+                .get();
+
+        // 2) Когда все три запроса успешно завершатся — обрабатываем их в порядке t1, t2, t3
+        Tasks.whenAllSuccess(drinksTask, dishesTask, dessertsTask)
+                .addOnSuccessListener(results -> {
+                    List<PriceList> all = new ArrayList<>();
+                    for (int i = 0; i < results.size(); i++) {
+                        QuerySnapshot snap = (QuerySnapshot) results.get(i);
+                        // Определяем категорию по порядковому номеру таска
+                        String type = (i == 0 ? "drinks" : i == 1 ? "dishes" : "desserts");
+
+                        for (DocumentSnapshot doc : snap.getDocuments()) {
+                            Long itemIdLong = doc.getLong("itemId");
+                            Double priceD   = doc.getDouble("price");
+                            Date   dt       = doc.getDate("date");
+                            if (itemIdLong == null || priceD == null) continue;
+
+                            PriceList p = new PriceList();
+                            // Записываем id в нужное поле
+                            switch (type) {
+                                case "drinks":  p.setDrinkId(itemIdLong.intValue());   break;
+                                case "dishes":  p.setDishId(itemIdLong.intValue());    break;
+                                default:        p.setDessertId(itemIdLong.intValue()); break;
                             }
+                            p.setPrice(priceD.floatValue());
+                            p.setDate(dt != null ? dt.getTime() : System.currentTimeMillis());
+                            all.add(p);
                         }
-                        prices.add(p);
                     }
+
+                    // 3) Сохраняем всё в Room и отрабатываем коллбэк
                     new Thread(() -> {
-                        db.priceListDAO().insertAll(prices);
-                        Log.d("CatalogSync", "Room: записано цен = " + prices.size());
+                        db.priceListDAO().insertAll(all);
+                        Log.d("CatalogSync", "Saved prices: " + all.size());
                         cb.onComplete();
                     }).start();
                 })
                 .addOnFailureListener(e -> {
-                    Log.e("CatalogSync", "Ошибка загрузки price_list", e);
+                    Log.e("CatalogSync", "Failed to load price_list", e);
                     cb.onComplete();
                 });
     }
