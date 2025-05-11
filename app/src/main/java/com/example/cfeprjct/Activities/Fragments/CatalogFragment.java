@@ -154,20 +154,21 @@ public class CatalogFragment extends Fragment {
         });
         editAddressButton.setOnClickListener(v -> showAddressInputDialog());
 
-        // Синхронизация каталога
         CatalogSync sync = new CatalogSync(requireContext());
-        sync.syncDrinks(() -> runOnUiThreadIfAdded(() -> {
-            if (currentCategory == Category.DRINKS)
-                loadDrinks(searchEditText.getText().toString());
-        }));
-        sync.syncDishes(() -> runOnUiThreadIfAdded(() -> {
-            if (currentCategory == Category.DISHES)
-                loadDishes(searchEditText.getText().toString());
-        }));
-        sync.syncDesserts(() -> runOnUiThreadIfAdded(() -> {
-            if (currentCategory == Category.DESSERTS)
-                loadDesserts(searchEditText.getText().toString());
-        }));
+        sync.syncPrices(() -> {
+            // этот callback сработает, когда все prices будут загружены и записаны в Room
+            if (!isAdded()) return;
+
+            // получаем текущее содержимое строки поиска
+            String q = searchEditText.getText().toString().trim();
+
+            // переключаемся обратно в UI-поток и сразу загружаем все три категории
+            requireActivity().runOnUiThread(() -> {
+                loadDrinks(q);
+                loadDishes(q);
+                loadDesserts(q);
+            });
+        });
 
         // Вкладки
         drinkTabButton.setOnClickListener(v -> {
