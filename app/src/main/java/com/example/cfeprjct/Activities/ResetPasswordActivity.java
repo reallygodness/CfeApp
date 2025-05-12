@@ -66,6 +66,9 @@ public class ResetPasswordActivity extends AppCompatActivity {
             return;
         }
 
+        // 2) Added: вешаем TextWatcher на поле нового пароля, чтобы динамически обновлять критерии
+        newPassEditText.addTextChangedListener(passwordWatcher);
+
         resetButton.setOnClickListener(v -> attemptReset());
     }
 
@@ -122,7 +125,11 @@ public class ResetPasswordActivity extends AppCompatActivity {
             return;
         }
 
-        // Можно добавить дополнительную валидацию по требованиям к паролю
+        // проверим, что все критерии зелёные (по цвету текста)
+        if (!allRequirementsMet()) {
+            Toast.makeText(this, "Пароль не соответствует всем требованиям", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
         // Хэшируем и сохраняем в фоне
         new Thread(() -> {
@@ -164,5 +171,19 @@ public class ResetPasswordActivity extends AppCompatActivity {
                 );
             }
         }).start();
+    }
+
+    // ↓↓↓ Added: проверяем, что все пять требований выполнены
+    private boolean allRequirementsMet() {
+        return textIsGreen(reqLength)
+                && textIsGreen(reqUpperLower)
+                && textIsGreen(reqDigit)
+                && textIsGreen(reqSpecial)
+                && textIsGreen(reqNoSpaces);
+    }
+
+    private boolean textIsGreen(TextView tv) {
+        int green = ContextCompat.getColor(this, R.color.green);
+        return tv.getCurrentTextColor() == green;
     }
 }

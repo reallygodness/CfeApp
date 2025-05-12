@@ -53,6 +53,74 @@ public class UserRepository {
                 return;
             }
 
+            firestore.collection("users")
+                    .whereEqualTo("email", email)
+                    .get()
+                    .addOnSuccessListener(emailSnap -> {
+                        if (!emailSnap.isEmpty()) {
+                            // <-- ИЗМЕНЕНИЕ: нашли совпадение по email в облаке
+                            callback.onFailure("Email уже используется в другом аккаунте!");
+                            return;
+                        }
+                        // 3) Проверяем в Firestore по телефону
+                        firestore.collection("users")
+                                .whereEqualTo("phoneNumber", phone)
+                                .get()
+                                .addOnSuccessListener(phoneSnap -> {
+                                    if (!phoneSnap.isEmpty()) {
+                                        // <-- ИЗМЕНЕНИЕ: нашли совпадение по телефону в облаке
+                                        callback.onFailure("Номер телефона уже используется в другом аккаунте!");
+                                        return;
+                                    }
+
+                                    // 4) Если нигде не найдено — продолжаем регистрацию
+                                    try {
+                                        // Хэшируем пароль
+                                        byte[] salt = PasswordUtils.generateSalt();
+                                        String hashedPassword = PasswordUtils.hashPassword(password, salt);
+
+                                        // Получаем авто-ID из Firestore
+                                        DocumentReference newUserRef = firestore.collection("users").document();
+                                        String generatedId = newUserRef.getId();
+
+                                        // Создаём локального пользователя с этим ID
+                                        User newUser = new User(firstName, lastName, email, phone, hashedPassword);
+                                        newUser.setUserId(generatedId);
+                                        userDAO.insertUser(newUser);
+
+                                        // Готовим данные для Firestore
+                                        Map<String, Object> userMap = new HashMap<>();
+                                        userMap.put("userId",      generatedId);
+                                        userMap.put("firstName",   firstName);
+                                        userMap.put("lastName",    lastName);
+                                        userMap.put("email",       email);
+                                        userMap.put("phoneNumber", phone);
+                                        userMap.put("password",    hashedPassword);
+                                        if (newUser.getProfileImage() != null) {
+                                            String b64 = Base64.encodeToString(
+                                                    newUser.getProfileImage(), Base64.DEFAULT);
+                                            userMap.put("profileImage", b64);
+                                        }
+
+                                        // Сохраняем в Firestore
+                                        newUserRef.set(userMap)
+                                                .addOnSuccessListener(aVoid -> callback.onSuccess(generatedId))
+                                                .addOnFailureListener(e ->
+                                                        callback.onFailure("Ошибка создания аккаунта в облаке: " + e.getMessage())
+                                                );
+
+                                    } catch (NoSuchAlgorithmException | InvalidKeySpecException ex) {
+                                        callback.onFailure("Ошибка хэширования пароля: " + ex.getMessage());
+                                    }
+                                })
+                                .addOnFailureListener(e ->
+                                        callback.onFailure("Ошибка проверки телефона в облаке: " + e.getMessage())
+                                );
+                    })
+                    .addOnFailureListener(e ->
+                            callback.onFailure("Ошибка проверки email в облаке: " + e.getMessage())
+                    );
+
             try {
                 // 2) Хэшируем пароль с солью
                 byte[] salt = PasswordUtils.generateSalt();

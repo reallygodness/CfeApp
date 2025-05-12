@@ -406,14 +406,34 @@ public class CartFragment extends Fragment {
         order.setTotalPrice(total);
         int orderId = (int)orderDAO.insertOrder(order);
 
-        // сохраняем позиции заказа (пример — напитки; блюда/десерты аналогично)
+        // Вставляем позиции в зависимости от типа
         for (CartItem ci : items) {
-            OrderedDrink od = new OrderedDrink();
-            od.setOrderId(orderId);
-            od.setDrinkId(ci.getProductId());
-            od.setQuantity(ci.getQuantity());
-            od.setSize(ci.getSize());
-            orderedDrinkDAO.insert(od);
+            switch (ci.getProductType()) {
+                case "drink":
+                    OrderedDrink drink = new OrderedDrink();
+                    drink.setOrderId(orderId);
+                    drink.setDrinkId(ci.getProductId());
+                    drink.setQuantity(ci.getQuantity());
+                    drink.setSize(ci.getSize());
+                    orderedDrinkDAO.insert(drink);
+                    break;
+                case "dish":
+                    OrderedDish dish = new OrderedDish();
+                    dish.setOrderId(orderId);
+                    dish.setDishId(ci.getProductId());
+                    dish.setQuantity(ci.getQuantity());
+                    dish.setSize(ci.getSize());
+                    orderedDishDAO.insert(dish);
+                    break;
+                case "dessert":
+                    OrderedDessert dessert = new OrderedDessert();
+                    dessert.setOrderId(orderId);
+                    dessert.setDessertId(ci.getProductId());
+                    dessert.setQuantity(ci.getQuantity());
+                    dessert.setSize(ci.getSize());
+                    orderedDessertDAO.insert(dessert);
+                    break;
+            }
         }
 
         // Очищаем корзину локально и на сервере

@@ -92,13 +92,7 @@
                 android:textStyle="bold"
                 android:textColor="#2F4B4E" />
 
-            <ImageView
-                android:id="@+id/addButton"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:padding="8dp"
-                android:src="@drawable/ic_add"
-                android:background="@drawable/bg_add_button" />
+
         </LinearLayout>
     </LinearLayout>
 </androidx.cardview.widget.CardView>

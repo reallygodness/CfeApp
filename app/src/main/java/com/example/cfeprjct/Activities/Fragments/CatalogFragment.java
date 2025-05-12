@@ -157,18 +157,13 @@ public class CatalogFragment extends Fragment {
         CatalogSync sync = new CatalogSync(requireContext());
         sync.syncPrices(() -> {
             if (!isAdded()) return;
-            String q = searchEditText.getText().toString().trim();
             requireActivity().runOnUiThread(() -> {
+                updateTabStyles();
+                String q = searchEditText.getText().toString().trim();
                 switch (currentCategory) {
-                    case DRINKS:
-                        loadDrinks(q);
-                        break;
-                    case DISHES:
-                        loadDishes(q);
-                        break;
-                    case DESSERTS:
-                        loadDesserts(q);
-                        break;
+                    case DRINKS:   loadDrinks(q); break;
+                    case DISHES:   loadDishes(q); break;
+                    case DESSERTS: loadDesserts(q); break;
                 }
             });
         });
@@ -232,8 +227,6 @@ public class CatalogFragment extends Fragment {
 
         // Первоначальная стилизация и загрузка
         updateTabStyles();
-        // ← ДОБАВИЛИ ЭТО: при первом старте сразу подгрузить напитки
-        loadDrinks(searchEditText.getText().toString());
 
         return view;
     }

@@ -30,6 +30,7 @@ import com.example.cfeprjct.AppDatabase;
 import com.example.cfeprjct.AuthUtils;
 import com.example.cfeprjct.R;
 import com.example.cfeprjct.User;
+import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
@@ -162,62 +163,152 @@ public class ProfileFragment extends Fragment {
             Toast.makeText(requireContext(), "Введите корректный email!", Toast.LENGTH_SHORT).show();
             return;
         }
+        // Разрешаем опциональный ведущий "+", затем от 10 до 15 цифр
+        if (!newPhoneNumber.matches("^\\+?\\d{10,15}$")) {
+            phoneNumberEditText.setError("Введите корректный номер телефона");
+            phoneNumberEditText.requestFocus();
+            return;
+        }
         if (newFirstName.isEmpty() || newLastName.isEmpty() || newEmail.isEmpty() || newPhoneNumber.isEmpty()) {
             Toast.makeText(requireContext(), "Все поля должны быть заполнены!", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        new Thread(() -> {
-            // Считываем пользователя из локальной базы по userId
-            User user = db.userDAO().getUserById(userId);
-            if (user != null) {
-                // Обновляем данные пользователя
-                user.setFirstName(newFirstName);
-                user.setLastName(newLastName);
-                user.setEmail(newEmail);
-                user.setPhoneNumber(newPhoneNumber);
-                if (selectedImageBytes != null) {
-                    user.setProfileImage(selectedImageBytes);
-                    // Обнуляем переменную после использования
-                    selectedImageBytes = null;
-                }
+        // 2) Локальная проверка уникальности Email
+        User byEmail = db.userDAO().getUserByEmail(newEmail);
+        if (byEmail != null && !byEmail.getUserId().equals(userId)) {
+            Toast.makeText(requireContext(),
+                    "Email уже используется другим аккаунтом", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        // 3) Локальная проверка уникальности телефона
+        User byPhone = db.userDAO().getUserByPhoneNumber(newPhoneNumber);
+        if (byPhone != null && !byPhone.getUserId().equals(userId)) {
+            Toast.makeText(requireContext(),
+                    "Телефон уже используется другим аккаунтом", Toast.LENGTH_SHORT).show();
+            return;
+        }
 
-                // Сохраняем обновлённого пользователя в локальную базу
-                db.userDAO().updateUser(user);
-
-                // Считываем обновлённого пользователя, чтобы быть уверенными в актуальности данных
-                User updatedUser = db.userDAO().getUserById(userId);
-                phoneNumber = updatedUser.getPhoneNumber();
-
-                // Обновляем UI в главном потоке, используя свежие данные
-                requireActivity().runOnUiThread(() -> {
-                    updateUIWithUser(updatedUser);
-                    Toast.makeText(requireContext(), "Профиль обновлён!", Toast.LENGTH_SHORT).show();
-                    exitEditMode();
-                    // Если используется BottomNavigationView – переключаем пункт меню на профиль
-                    ((MainActivity) requireActivity()).getBottomNavigationView().setSelectedItemId(R.id.nav_profile);
+        // 3) Проверка уникальности в Firestore (асинхронно)
+        firestore.collection("users")
+                .whereEqualTo("email", newEmail)
+                .get()
+                .addOnSuccessListener(emailSnap -> {
+                    // если найден какой-то документ НЕ нашего пользователя — ошибка
+                    for (DocumentSnapshot doc : emailSnap.getDocuments()) {
+                        if (!doc.getId().equals(userId)) {
+                            if (isAdded()) requireActivity().runOnUiThread(() ->
+                                    Toast.makeText(requireContext(),
+                                            "Email уже используется другим аккаунтом",
+                                            Toast.LENGTH_SHORT).show()
+                            );
+                            return;
+                        }
+                    }
+                    // 4) Если email свободен — проверяем телефон
+                    firestore.collection("users")
+                            .whereEqualTo("phoneNumber", newPhoneNumber)
+                            .get()
+                            .addOnSuccessListener(phoneSnap -> {
+                                for (DocumentSnapshot doc : phoneSnap.getDocuments()) {
+                                    if (!doc.getId().equals(userId)) {
+                                        if (isAdded()) requireActivity().runOnUiThread(() ->
+                                                Toast.makeText(requireContext(),
+                                                        "Телефон уже используется другим аккаунтом",
+                                                        Toast.LENGTH_SHORT).show()
+                                        );
+                                        return;
+                                    }
+                                }
+                                // 5) Email и телефон свободны и в Firestore — выполняем сохранение
+                                performLocalAndRemoteUpdate(
+                                        newFirstName, newLastName, newEmail, newPhoneNumber
+                                );
+                            })
+                            .addOnFailureListener(e -> {
+                                if (isAdded()) requireActivity().runOnUiThread(() ->
+                                        Toast.makeText(requireContext(),
+                                                "Не удалось проверить телефон в облаке",
+                                                Toast.LENGTH_SHORT).show()
+                                );
+                            });
+                })
+                .addOnFailureListener(e -> {
+                    if (isAdded()) requireActivity().runOnUiThread(() ->
+                            Toast.makeText(requireContext(),
+                                    "Не удалось проверить email в облаке",
+                                    Toast.LENGTH_SHORT).show()
+                    );
                 });
+    }
 
-                // Готовим обновлённые данные для Firestore, включая зашифрованный пароль и изображение
-                Map<String, Object> updatedUserMap = new HashMap<>();
-                updatedUserMap.put("userId", updatedUser.getUserId());
-                updatedUserMap.put("phoneNumber", updatedUser.getPhoneNumber());
-                updatedUserMap.put("firstName", updatedUser.getFirstName());
-                updatedUserMap.put("lastName", updatedUser.getLastName());
-                updatedUserMap.put("email", updatedUser.getEmail());
-                updatedUserMap.put("password", updatedUser.getPassword());
-                if (updatedUser.getProfileImage() != null) {
-                    updatedUserMap.put("profileImage", Base64.encodeToString(updatedUser.getProfileImage(), Base64.DEFAULT));
-                }
+    /**
+     * Выносит остальную логику обновления профиля (локальной и удалённой)
+     * в отдельный метод, чтобы не дублировать код в колбэках.
+     */
+    private void performLocalAndRemoteUpdate(
+            String first, String last, String email, String phone
+    ) {
+        new Thread(() -> {
+            // 1) Локальное обновление
+            User user = db.userDAO().getUserById(userId);
+            if (user == null) return;
 
-                // Отправляем данные в Firestore
-                firestore.collection("users").document(updatedUser.getUserId())
-                        .set(updatedUserMap)
-                        .addOnSuccessListener(aVoid ->
-                                Log.d("Firestore", "Данные в Firestore успешно обновлены"))
-                        .addOnFailureListener(e ->
-                                Log.e("Firestore", "❌ Ошибка обновления данных в Firestore", e));
+            user.setFirstName(first);
+            user.setLastName(last);
+            user.setEmail(email);
+            user.setPhoneNumber(phone);
+            if (selectedImageBytes != null) {
+                user.setProfileImage(selectedImageBytes);
+                selectedImageBytes = null;
             }
+            db.userDAO().updateUser(user);
+            User updated = db.userDAO().getUserById(userId);
+
+            // 2) UI-обновление
+            if (isAdded()) {
+                requireActivity().runOnUiThread(() -> {
+                    updateUIWithUser(updated);
+                    Toast.makeText(requireContext(),
+                            "Профиль обновлён!", Toast.LENGTH_SHORT).show();
+                    exitEditMode();
+                    ((MainActivity) requireActivity())
+                            .getBottomNavigationView()
+                            .setSelectedItemId(R.id.nav_profile);
+                });
+            }
+
+            // 3) Подготовка данных для Firestore
+            Map<String,Object> map = new HashMap<>();
+            map.put("userId",      updated.getUserId());
+            map.put("firstName",   updated.getFirstName());
+            map.put("lastName",    updated.getLastName());
+            map.put("email",       updated.getEmail());
+            map.put("phoneNumber", updated.getPhoneNumber());
+            map.put("password",    updated.getPassword());
+            if (updated.getProfileImage() != null) {
+                map.put("profileImage",
+                        Base64.encodeToString(updated.getProfileImage(), Base64.DEFAULT));
+            }
+
+            // 4) Отправка в Firestore
+            firestore.collection("users")
+                    .document(updated.getUserId())
+                    .set(map)
+                    .addOnSuccessListener(aVoid -> {
+                        if (!isAdded()) return;
+                        Log.d("Firestore", "Профиль в облаке обновлён");
+                    })
+                    .addOnFailureListener(e -> {
+                        if (!isAdded()) return;
+                        Log.e("Firestore", "Ошибка обновления профиля в облаке", e);
+                        requireActivity().runOnUiThread(() ->
+                                Toast.makeText(requireContext(),
+                                        "Ошибка при сохранении на сервере",
+                                        Toast.LENGTH_SHORT).show()
+                        );
+                    });
+
         }).start();
     }
 

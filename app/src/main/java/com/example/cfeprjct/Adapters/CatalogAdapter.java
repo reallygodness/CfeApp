@@ -90,10 +90,6 @@ public class CatalogAdapter extends RecyclerView.Adapter<CatalogAdapter.ViewHold
             ctx.startActivity(intent);
         });
 
-        // Кнопка “+”
-        holder.addButton.setOnClickListener(v -> {
-            // TODO: добавить логику добавления в корзину
-        });
     }
 
     @Override
@@ -106,8 +102,7 @@ public class CatalogAdapter extends RecyclerView.Adapter<CatalogAdapter.ViewHold
                 descriptionTextView,
                 priceTextView,
                 sizeTextView;
-        ImageView   imageView,
-                addButton;
+        ImageView   imageView;
         LinearLayout ratingContainer;
 
         ViewHolder(@NonNull View itemView) {
@@ -117,7 +112,6 @@ public class CatalogAdapter extends RecyclerView.Adapter<CatalogAdapter.ViewHold
             priceTextView       = itemView.findViewById(R.id.itemPriceTextView);
             sizeTextView        = itemView.findViewById(R.id.itemSize);
             imageView           = itemView.findViewById(R.id.itemImageView);
-            addButton           = itemView.findViewById(R.id.addButton);
             ratingContainer     = itemView.findViewById(R.id.ratingContainer);
         }
     }
