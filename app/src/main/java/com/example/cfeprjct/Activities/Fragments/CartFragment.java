@@ -2,7 +2,9 @@ package com.example.cfeprjct.Activities.Fragments;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Geocoder;
@@ -11,6 +13,7 @@ import android.os.Handler;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
 import android.widget.TextView;
@@ -147,9 +150,7 @@ public class CartFragment extends Fragment {
             }
         };
         tvAddress.setOnClickListener(addrClick);
-        btnEditAddress.setOnClickListener(v ->
-                new EditAddressDialogFragment().show(getChildFragmentManager(), "editAddr")
-        );
+        btnEditAddress.setOnClickListener(v -> showAddressInputDialog());
 
         // 8) Подписываемся на корзину и синхронизируем
         observeCart(userId);
@@ -195,36 +196,46 @@ public class CartFragment extends Fragment {
         });
     }
 
-    private void saveAndSyncAddress(String city, String street, String house) {
+    private void saveAndSyncAddress(String city,
+                                    String street,
+                                    String house,
+                                    String apartment) {
         String userId = AuthUtils.getLoggedInUserId(requireContext());
         if (userId == null) return;
         new Thread(() -> {
             Address ex = addressDAO.getAddressByUserId(userId);
             int addrId;
             if (ex != null) {
-                ex.setCity(city); ex.setStreet(street); ex.setHouse(house); ex.setApartment("");
+                ex.setCity(city);
+                ex.setStreet(street);
+                ex.setHouse(house);
+                ex.setApartment(apartment);
                 addressDAO.updateAddress(ex);
                 addrId = ex.getAddressId();
             } else {
                 Address a = new Address();
                 a.setUserId(userId);
-                a.setCity(city); a.setStreet(street); a.setHouse(house); a.setApartment("");
+                a.setCity(city);
+                a.setStreet(street);
+                a.setHouse(house);
+                a.setApartment(apartment);
                 addrId = (int) addressDAO.insertAddress(a);
             }
             Map<String, Object> m = new HashMap<>();
             m.put("addressId", addrId);
-            m.put("userId", userId);
-            m.put("city", city);
-            m.put("street", street);
-            m.put("house", house);
-            m.put("apartment", "");
+            m.put("userId",    userId);
+            m.put("city",      city);
+            m.put("street",    street);
+            m.put("house",     house);
+            m.put("apartment", apartment);
             firestore.collection("addresses")
                     .document(String.valueOf(addrId))
                     .set(m);
             firestore.collection("users")
                     .document(userId)
                     .update("addressId", addrId);
-            String fmt = city + ", " + street + " " + house;
+            String fmt = city + ", " + street + " " + house
+                    + (apartment.isEmpty() ? "" : ", кв. " + apartment);
             requireActivity().runOnUiThread(() -> {
                 tvAddress.setText(fmt);
                 hasAddress = true;
@@ -252,9 +263,10 @@ public class CartFragment extends Fragment {
                 List<android.location.Address> list = gc.getFromLocation(lat, lng, 1);
                 if (!list.isEmpty()) {
                     android.location.Address src = list.get(0);
-                    saveAndSyncAddress(
-                            src.getLocality(), src.getThoroughfare(), src.getFeatureName()
-                    );
+                    saveAndSyncAddress(src.getLocality(),
+                            src.getThoroughfare(),
+                            src.getFeatureName(),
+                            "");
                 }
             } catch (IOException ignored) {}
         }).start();
@@ -394,14 +406,34 @@ public class CartFragment extends Fragment {
         order.setTotalPrice(total);
         int orderId = (int)orderDAO.insertOrder(order);
 
-        // сохраняем позиции заказа (пример — напитки; блюда/десерты аналогично)
+        // Вставляем позиции в зависимости от типа
         for (CartItem ci : items) {
-            OrderedDrink od = new OrderedDrink();
-            od.setOrderId(orderId);
-            od.setDrinkId(ci.getProductId());
-            od.setQuantity(ci.getQuantity());
-            od.setSize(ci.getSize());
-            orderedDrinkDAO.insert(od);
+            switch (ci.getProductType()) {
+                case "drink":
+                    OrderedDrink drink = new OrderedDrink();
+                    drink.setOrderId(orderId);
+                    drink.setDrinkId(ci.getProductId());
+                    drink.setQuantity(ci.getQuantity());
+                    drink.setSize(ci.getSize());
+                    orderedDrinkDAO.insert(drink);
+                    break;
+                case "dish":
+                    OrderedDish dish = new OrderedDish();
+                    dish.setOrderId(orderId);
+                    dish.setDishId(ci.getProductId());
+                    dish.setQuantity(ci.getQuantity());
+                    dish.setSize(ci.getSize());
+                    orderedDishDAO.insert(dish);
+                    break;
+                case "dessert":
+                    OrderedDessert dessert = new OrderedDessert();
+                    dessert.setOrderId(orderId);
+                    dessert.setDessertId(ci.getProductId());
+                    dessert.setQuantity(ci.getQuantity());
+                    dessert.setSize(ci.getSize());
+                    orderedDessertDAO.insert(dessert);
+                    break;
+            }
         }
 
         // Очищаем корзину локально и на сервере
@@ -430,5 +462,50 @@ public class CartFragment extends Fragment {
 
     private void updateCheckoutState(int sum) {
         btnCheckout.setEnabled(sum > 0 && hasAddress);
+    }
+
+    private void showAddressInputDialog() {
+        // 1) Инфлейтим layout диалога
+        View dlg = LayoutInflater.from(requireContext())
+                .inflate(R.layout.dialog_edit_address, null);
+        final EditText etCity      = dlg.findViewById(R.id.etCity);
+        final EditText etStreet    = dlg.findViewById(R.id.etStreet);
+        final EditText etHouse     = dlg.findViewById(R.id.etHouse);
+        final EditText etApartment = dlg.findViewById(R.id.etApartment);
+
+        // 2) Подтягиваем текущий адрес из Room и префилл
+        String uid = AuthUtils.getLoggedInUserId(requireContext());
+        if (uid != null) {
+            Executors.newSingleThreadExecutor().execute(() -> {
+                Address existing = addressDAO.getAddressByUserId(uid);
+                if (existing != null) {
+                    requireActivity().runOnUiThread(() -> {
+                        etCity.    setText(existing.getCity());
+                        etStreet.  setText(existing.getStreet());
+                        etHouse.   setText(existing.getHouse());
+                        etApartment.setText(existing.getApartment());
+                    });
+                }
+            });
+        }
+
+        // 3) Строим и показываем AlertDialog
+        new AlertDialog.Builder(requireContext())
+                .setTitle("Редактировать адрес")
+                .setView(dlg)
+                .setPositiveButton("Сохранить", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        // собираем введённые данные
+                        String city      = etCity.getText().toString().trim();
+                        String street    = etStreet.getText().toString().trim();
+                        String house     = etHouse.getText().toString().trim();
+                        String apartment = etApartment.getText().toString().trim();
+                        // сохраняем и синхронизируем
+                        saveAndSyncAddress(city, street, house, apartment);
+                    }
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
     }
 }

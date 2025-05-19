@@ -1,5 +1,7 @@
 package com.example.cfeprjct.Adapters;
 
+import android.os.Handler;
+import android.os.Looper;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -17,6 +19,8 @@ import com.example.cfeprjct.DAOS.CartItemDAO;
 import com.example.cfeprjct.Entities.CartItem;
 import com.example.cfeprjct.R;
 
+import java.util.concurrent.Executors;
+
 public class CartAdapter extends ListAdapter<CartItem, CartAdapter.VH> {
 
     private final CartItemDAO dao;
@@ -26,13 +30,16 @@ public class CartAdapter extends ListAdapter<CartItem, CartAdapter.VH> {
             @Override
             public boolean areItemsTheSame(@NonNull CartItem a, @NonNull CartItem b) {
                 return a.getProductType().equals(b.getProductType())
-                        && a.getProductId() == b.getProductId();
+                        && a.getProductId() == b.getProductId()
+                        && a.getSize() == b.getSize();
             }
+
             @Override
             public boolean areContentsTheSame(@NonNull CartItem a, @NonNull CartItem b) {
                 return a.getQuantity() == b.getQuantity()
-                        && a.getUnitPrice() == b.getUnitPrice()
-                        && a.getSize() == b.getSize();
+                        && Float.compare(a.getUnitPrice(), b.getUnitPrice()) == 0
+                        && a.getSize() == b.getSize()
+                        && a.getTitle().equals(b.getTitle()); // добавь это для надёжности
             }
         });
         this.dao = dao;
@@ -68,25 +75,34 @@ public class CartAdapter extends ListAdapter<CartItem, CartAdapter.VH> {
                 .centerCrop()
                 .into(h.image);
 
-        // Уменьшить количество
+        // — Уменьшить количество —
         h.btnDecrease.setOnClickListener(v -> {
             int newQ = ci.getQuantity() - 1;
             if (newQ < 1) return;
             ci.setQuantity(newQ);
-            new Thread(() -> dao.update(ci)).start();
+            new Thread(() -> {
+                dao.update(ci);
+                new Handler(Looper.getMainLooper()).post(this::notifyDataSetChanged);
+            }).start();
         });
 
-        // Увеличить количество (до 15)
+        // — Увеличить количество (до 15) —
         h.btnIncrease.setOnClickListener(v -> {
             int newQ = Math.min(ci.getQuantity() + 1, 15);
             ci.setQuantity(newQ);
-            new Thread(() -> dao.update(ci)).start();
+            new Thread(() -> {
+                dao.update(ci);
+                new Handler(Looper.getMainLooper()).post(this::notifyDataSetChanged);
+            }).start();
         });
 
-        // Удалить из корзины
-        h.btnDelete.setOnClickListener(v -> {
-            new Thread(() -> dao.delete(ci)).start();
-        });
+        // — Удалить элемент из корзины —
+        h.btnDelete.setOnClickListener(v ->
+                new Thread(() -> {
+                    dao.delete(ci);
+                    new Handler(Looper.getMainLooper()).post(this::notifyDataSetChanged);
+                }).start()
+        );
     }
 
     static class VH extends RecyclerView.ViewHolder {
@@ -106,7 +122,7 @@ public class CartAdapter extends ListAdapter<CartItem, CartAdapter.VH> {
             btnDelete   = v.findViewById(R.id.btnRemove);
         }
 
-        // Вот что меняем в DiffCallback:
+        // меняем в DiffCallback:
         public static final DiffUtil.ItemCallback<CartItem> DIFF_CALLBACK =
                 new DiffUtil.ItemCallback<CartItem>() {
                     @Override public boolean areItemsTheSame(@NonNull CartItem a, @NonNull CartItem b) {

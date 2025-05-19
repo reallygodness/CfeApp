@@ -12,6 +12,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.Executors;
 
 public class UserRepository {
 
@@ -53,52 +54,69 @@ public class UserRepository {
                 return;
             }
 
-            try {
-                // 2) Хэшируем пароль с солью
-                byte[] salt = PasswordUtils.generateSalt();
-                String hashedPassword = PasswordUtils.hashPassword(password, salt);
+            // 2) Проверяем в Firestore
+            firestore.collection("users")
+                    .whereEqualTo("email", email)
+                    .get()
+                    .addOnSuccessListener(emailSnap -> {
+                        if (!emailSnap.isEmpty()) {
+                            callback.onFailure("Email уже используется в другом аккаунте!");
+                            return;
+                        }
 
-                // 3) Генерируем авто-ID в Firestore
-                CollectionReference usersColl = firestore.collection("users");
-                DocumentReference newUserRef = usersColl.document();  // <- авто-ID
-                String generatedId = newUserRef.getId();
+                        firestore.collection("users")
+                                .whereEqualTo("phoneNumber", phone)
+                                .get()
+                                .addOnSuccessListener(phoneSnap -> {
+                                    if (!phoneSnap.isEmpty()) {
+                                        callback.onFailure("Номер телефона уже используется в другом аккаунте!");
+                                        return;
+                                    }
 
-                // 4) Создаём объект User и сохраняем локально
-                User newUser = new User(firstName, lastName, email, phone, hashedPassword);
-                newUser.setUserId(generatedId);
-                userDAO.insertUser(newUser);
+                                    // Если нигде не найдено — продолжаем регистрацию
+                                    try {
+                                        // Хэшируем пароль
+                                        byte[] salt = PasswordUtils.generateSalt();
+                                        String hashedPassword = PasswordUtils.hashPassword(password, salt);
 
-                // 5) Собираем поля для Firestore
-                Map<String,Object> userMap = new HashMap<>();
-                userMap.put("userId",      generatedId);
-                userMap.put("firstName",   firstName);
-                userMap.put("lastName",    lastName);
-                userMap.put("email",       email);
-                userMap.put("phoneNumber", phone);
-                userMap.put("password",    hashedPassword);
-                if (newUser.getProfileImage() != null) {
-                    String b64 = Base64.encodeToString(
-                            newUser.getProfileImage(),
-                            Base64.DEFAULT
-                    );
-                    userMap.put("profileImage", b64);
-                }
+                                        // Генерируем userId
+                                        DocumentReference newUserRef = firestore.collection("users").document();
+                                        String generatedId = newUserRef.getId();
 
-                // 6) Записываем в документ с авто-ID
-                newUserRef
-                        .set(userMap)
-                        .addOnSuccessListener(aVoid -> {
-                            Log.d("UserRepo", "Успешная регистрация в Firestore");
-                            callback.onSuccess(generatedId);
-                        })
-                        .addOnFailureListener(e -> {
-                            Log.e("UserRepo", "Ошибка записи в Firestore", e);
-                            callback.onFailure("Ошибка регистрации: " + e.getMessage());
-                        });
+                                        // Создаём объект пользователя
+                                        User newUser = new User(firstName, lastName, email, phone, hashedPassword);
+                                        newUser.setUserId(generatedId);
 
-            } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {
-                callback.onFailure("Ошибка хэширования пароля: " + e.getMessage());
-            }
+                                        // Вставляем в Room в фоне
+                                        Executors.newSingleThreadExecutor().execute(() -> {
+                                            userDAO.insertUser(newUser);
+                                        });
+
+                                        // Готовим данные для Firestore
+                                        Map<String, Object> userMap = new HashMap<>();
+                                        userMap.put("userId", generatedId);
+                                        userMap.put("firstName", firstName);
+                                        userMap.put("lastName", lastName);
+                                        userMap.put("email", email);
+                                        userMap.put("phoneNumber", phone);
+                                        userMap.put("password", hashedPassword);
+                                        if (newUser.getProfileImage() != null) {
+                                            String b64 = Base64.encodeToString(newUser.getProfileImage(), Base64.DEFAULT);
+                                            userMap.put("profileImage", b64);
+                                        }
+                                        // Сохраняем в Firestore
+                                        newUserRef.set(userMap)
+                                                .addOnSuccessListener(aVoid -> callback.onSuccess(generatedId))
+                                                .addOnFailureListener(e ->
+                                                        callback.onFailure("Ошибка создания аккаунта в облаке: " + e.getMessage()));
+                                    } catch (NoSuchAlgorithmException | InvalidKeySpecException ex) {
+                                        callback.onFailure("Ошибка хэширования пароля: " + ex.getMessage());
+                                    }
+
+                                })
+                                .addOnFailureListener(e -> callback.onFailure("Ошибка проверки телефона: " + e.getMessage()));
+                    })
+                    .addOnFailureListener(e -> callback.onFailure("Ошибка проверки email: " + e.getMessage()));
         }).start();
     }
 

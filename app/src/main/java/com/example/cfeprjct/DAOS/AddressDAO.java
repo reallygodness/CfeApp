@@ -27,9 +27,6 @@ public interface AddressDAO {
     @Query("SELECT * FROM addresses WHERE userId = :userId LIMIT 1")
     Address getByUserId(String userId);
 
-
-
-
     /** Вставка или обновление; возвращаем rowId при вставке */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     long insertAddress(Address address);

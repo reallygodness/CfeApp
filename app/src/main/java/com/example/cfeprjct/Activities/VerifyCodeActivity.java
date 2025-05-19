@@ -12,12 +12,17 @@ import com.example.cfeprjct.AppDatabase;
 import com.example.cfeprjct.R;
 import com.example.cfeprjct.User;
 import com.example.cfeprjct.UserDAO;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FirebaseFirestore;
 
 public class VerifyCodeActivity extends AppCompatActivity {
 
     private EditText codeEditText;
     private Button verifyButton;
-    private AppDatabase database;
+    private FirebaseFirestore firestore;
+
+    // теперь точно не null, потому что мы их кладём в Intent
+    private String userId;
     private String email;
 
     @Override
@@ -25,45 +30,76 @@ public class VerifyCodeActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_verify_code);
 
-        // Получаем ссылку на локальную базу данных
-        database = AppDatabase.getInstance(this);
+        codeEditText  = findViewById(R.id.codeEditText);
+        verifyButton  = findViewById(R.id.verifyButton);
+        firestore     = FirebaseFirestore.getInstance();
 
-        codeEditText = findViewById(R.id.codeEditText);
-        verifyButton = findViewById(R.id.verifyButton);
+        // получаем из Intent оба параметра:
+        userId = getIntent().getStringExtra("userId");
+        email  = getIntent().getStringExtra("email");
 
-        // Получаем email из Intent
-        email = getIntent().getStringExtra("email");
+        // Если по какой-то причине userId не передался, сразу выходим
+        if (userId == null || userId.isEmpty()) {
+            Toast.makeText(this,
+                    "Неизвестный пользователь для сброса пароля",
+                    Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
 
-        // Обработка клика с использованием лямбды
         verifyButton.setOnClickListener(v -> verifyCode());
     }
 
     private void verifyCode() {
         String enteredCode = codeEditText.getText().toString().trim();
-
         if (enteredCode.isEmpty()) {
             Toast.makeText(this, "Введите код подтверждения", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // Выполняем проверку в фоновом потоке
-        new Thread(() -> {
-            UserDAO userDAO = AppDatabase.getInstance(getApplicationContext()).userDAO();
-            // Метод verifyResetCode(email, enteredCode) должен вернуть пользователя, если код верный
-            User user = userDAO.verifyResetCode(email, enteredCode);
+        // идём за документом password_resets/{userId}
+        firestore.collection("password_resets")
+                .document(userId)
+                .get()
+                .addOnSuccessListener(this::onCodeDocument)
+                .addOnFailureListener(e ->
+                        Toast.makeText(this,
+                                "Ошибка проверки кода: " + e.getMessage(),
+                                Toast.LENGTH_LONG).show()
+                );
+    }
 
-            runOnUiThread(() -> {
-                if (user != null) {
-                    Toast.makeText(VerifyCodeActivity.this, "Код подтвержден!", Toast.LENGTH_SHORT).show();
-                    // Передаем email в ResetPasswordActivity (проверь правильность имени класса)
-                    Intent intent = new Intent(VerifyCodeActivity.this, ResetPasswordAcitvity.class);
-                    intent.putExtra("email", email);
-                    startActivity(intent);
-                    finish();
-                } else {
-                    Toast.makeText(VerifyCodeActivity.this, "Неверный код", Toast.LENGTH_SHORT).show();
-                }
-            });
-        }).start();
+    private void onCodeDocument(DocumentSnapshot doc) {
+        if (!doc.exists()) {
+            Toast.makeText(this,
+                    "Код не найден. Пожалуйста, запросите новый.",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        String code = doc.getString("code");
+        Long   ts   = doc.getLong("timestamp");
+        if (code == null || ts == null) {
+            Toast.makeText(this,
+                    "Неверный формат кода",
+                    Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Проверяем совпадение и время жизни (10 минут)
+        if (!code.equals(codeEditText.getText().toString().trim())) {
+            Toast.makeText(this, "Неверный код", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        if (System.currentTimeMillis() - ts > 10 * 60_000) {
+            Toast.makeText(this, "Код устарел", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Всё ок — переходим к экрану смены пароля
+        Intent i = new Intent(this, ResetPasswordActivity.class);
+        i.putExtra("userId", userId);
+        startActivity(i);
+        finish();
     }
 }
