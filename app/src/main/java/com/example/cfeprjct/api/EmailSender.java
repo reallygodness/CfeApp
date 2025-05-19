@@ -20,7 +20,7 @@ public class EmailSender {
     private static final String SMTP_HOST = "smtp.gmail.com";
     private static final String SMTP_PORT = "587";
     private static final String USERNAME  = "gneyasov63@gmail.com";
-    private static final String PASSWORD  = "tuvz jvdy uaaa roni";
+    private static final String PASSWORD  = "vsws ptvv czkt unti";
 
     public static void send(String toEmail, String subject, String body) {
         AsyncTask.execute(() -> {

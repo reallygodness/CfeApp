@@ -292,7 +292,7 @@ public class ProfileFragment extends Fragment {
             }
 
             // 4) Отправка в Firestore
-            firestore.collection("users")
+        firestore.collection("users")
                     .document(updated.getUserId())
                     .set(map)
                     .addOnSuccessListener(aVoid -> {

@@ -24,18 +24,15 @@ public class Drink {
     public int getDrinkId() {
         return drinkId;
     }
-
     public String getName() {
         return name;
     }
-
     public String getDescription() {
         return description;
     }
 
     // добавляем поле
     private String imageUrl;
-
     public int getVolumeId() {
         return volumeId;
     }
@@ -44,11 +41,9 @@ public class Drink {
     public void setDrinkId(int drinkId) {
         this.drinkId = drinkId;
     }
-
     public void setName(String name) {
         this.name = name;
     }
-
     public void setDescription(String description) {
         this.description = description;
     }

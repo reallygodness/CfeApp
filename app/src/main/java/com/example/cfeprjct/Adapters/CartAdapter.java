@@ -122,7 +122,7 @@ public class CartAdapter extends ListAdapter<CartItem, CartAdapter.VH> {
             btnDelete   = v.findViewById(R.id.btnRemove);
         }
 
-        // Вот что меняем в DiffCallback:
+        // меняем в DiffCallback:
         public static final DiffUtil.ItemCallback<CartItem> DIFF_CALLBACK =
                 new DiffUtil.ItemCallback<CartItem>() {
                     @Override public boolean areItemsTheSame(@NonNull CartItem a, @NonNull CartItem b) {

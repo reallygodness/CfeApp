@@ -211,7 +211,6 @@ public class ProfileActivity extends AppCompatActivity {
                                     .set(updatedUser)
                                     .addOnSuccessListener(aVoid1 -> runOnUiThread(() -> {
                                         phoneNumber = newPhoneNumber;
-
                                         phoneNumberTextView.setText("Номер телефона: +" + newPhoneNumber);
                                         updateUI();
                                         Toast.makeText(ProfileActivity.this, "Профиль обновлён!", Toast.LENGTH_SHORT).show();
