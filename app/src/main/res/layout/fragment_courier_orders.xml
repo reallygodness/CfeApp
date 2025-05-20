@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root_courier_orders"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Список заказов курьера -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recycler_orders"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="12dp"
+        android:clipToPadding="false"/>
+
+    <!-- Плейсхолдер, если нет заказов -->
+    <TextView
+        android:id="@+id/tv_empty"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Нет новых заказов"
+        android:textSize="18sp"
+        android:textColor="#888888"
+        android:layout_gravity="center"
+        android:visibility="gone"/>
+
+</FrameLayout>

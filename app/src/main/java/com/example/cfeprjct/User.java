@@ -1,6 +1,10 @@
 package com.example.cfeprjct;
 
 import androidx.annotation.NonNull;
+<<<<<<< HEAD
+=======
+import androidx.room.ColumnInfo;
+>>>>>>> d8c31960397f119aba61d2c43f1a411476b6f838
 import androidx.room.Entity;
 import androidx.room.Ignore;
 import androidx.room.PrimaryKey;
@@ -20,13 +24,43 @@ public class User {
     private String password;  // для хранения пароля
     private byte[] profileImage;
 
+<<<<<<< HEAD
     // Основной конструктор, который будет использоваться Room
     public User(@NonNull String userId, String firstName, String lastName, String email, String phoneNumber) {
+=======
+    @ColumnInfo(name = "role_id", defaultValue = "1")
+    public int roleId;
+
+    // Основной конструктор, который будет использоваться Room
+    public User(@NonNull String userId, String firstName, String lastName, String email, String phoneNumber, int roleId) {
+>>>>>>> d8c31960397f119aba61d2c43f1a411476b6f838
         this.userId = userId;
         this.firstName = firstName;
         this.lastName = lastName;
         this.email = email;
         this.phoneNumber = phoneNumber;
+<<<<<<< HEAD
+=======
+        this.roleId = roleId;
+    }
+
+    /**
+     * Новый конструктор для регистрации:
+     * генерирует роль = 1 и userId потом устанавливается отдельно (например, из FirebaseAuth).
+     */
+    @Ignore
+    public User(String firstName,
+                String lastName,
+                String email,
+                String phoneNumber,
+                String password) {
+        this.firstName   = firstName;
+        this.lastName    = lastName;
+        this.email       = email;
+        this.phoneNumber = phoneNumber;
+        this.password    = password;
+        this.roleId      = 1;  // дефолтная роль "user"
+>>>>>>> d8c31960397f119aba61d2c43f1a411476b6f838
     }
 
     // Конструктор без параметров, помечаем @Ignore, чтобы Room его не выбирал
@@ -99,4 +133,14 @@ public class User {
     public void setProfileImage(byte[] profileImage) {
         this.profileImage = profileImage;
     }
+<<<<<<< HEAD
+=======
+
+    public int getRoleId() {
+        return roleId;
+    }
+    public void setRoleId(int roleId) {
+        this.roleId = roleId;
+    }
+>>>>>>> d8c31960397f119aba61d2c43f1a411476b6f838
 }

@@ -27,6 +27,10 @@ import com.example.cfeprjct.DAOS.OrderedDishDAO;
 import com.example.cfeprjct.DAOS.OrderedDrinkDAO;
 import com.example.cfeprjct.DAOS.PriceListDAO;
 import com.example.cfeprjct.DAOS.ReviewDAO;
+<<<<<<< HEAD
+=======
+import com.example.cfeprjct.DAOS.RoleDAO;
+>>>>>>> d8c31960397f119aba61d2c43f1a411476b6f838
 import com.example.cfeprjct.DAOS.VolumeDAO;
 import com.example.cfeprjct.Entities.Address;
 import com.example.cfeprjct.Entities.CartItem;
@@ -45,6 +49,10 @@ import com.example.cfeprjct.Entities.DrinkIngredient;
 import com.example.cfeprjct.Entities.Ingredient;
 import com.example.cfeprjct.Entities.PriceList;
 import com.example.cfeprjct.Entities.Review;
+<<<<<<< HEAD
+=======
+import com.example.cfeprjct.Entities.Role;
+>>>>>>> d8c31960397f119aba61d2c43f1a411476b6f838
 import com.example.cfeprjct.Entities.Volume;
 import com.example.cfeprjct.User;
 
@@ -68,9 +76,16 @@ import com.example.cfeprjct.User;
                 OrderedDish.class,
                 Dessert.class,
                 OrderedDessert.class,
+<<<<<<< HEAD
                 CartItem.class
         },
         version = 14,
+=======
+                CartItem.class,
+                Role.class
+        },
+        version = 15,
+>>>>>>> d8c31960397f119aba61d2c43f1a411476b6f838
         exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -79,6 +94,10 @@ public abstract class AppDatabase extends RoomDatabase {
 
     public abstract CartItemDAO cartItemDao();
     public abstract UserDAO userDAO();
+<<<<<<< HEAD
+=======
+    public abstract RoleDAO roleDAO();
+>>>>>>> d8c31960397f119aba61d2c43f1a411476b6f838
     public abstract AddressDAO addressDAO();
     public abstract DeliveryDAO deliveryDAO();
     public abstract OrderedDrinkDAO orderedDrinkDAO();
@@ -297,6 +316,34 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
+<<<<<<< HEAD
+=======
+    private static final Migration MIGRATION_14_15 = new Migration(14, 15) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            // 1) Создаём таблицу ролей
+            db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `roles` (" +
+                            "  `role_id` INTEGER NOT NULL PRIMARY KEY, " +
+                            "  `role_name` TEXT" +
+                            ")"
+            );
+
+            // 2) Добавляем колонку role_id в users, со значением по умолчанию = 1
+            db.execSQL(
+                    "ALTER TABLE `users` " +
+                            "ADD COLUMN `role_id` INTEGER NOT NULL DEFAULT 1"
+            );
+
+            // 3) Вставляем дефолтную роль «user»
+            db.execSQL(
+                    "INSERT OR IGNORE INTO `roles` (`role_id`, `role_name`) " +
+                            "VALUES (1, 'user')"
+            );
+        }
+    };
+
+>>>>>>> d8c31960397f119aba61d2c43f1a411476b6f838
 
 
     public static synchronized AppDatabase getInstance(Context context) {
@@ -316,7 +363,12 @@ public abstract class AppDatabase extends RoomDatabase {
                             MIGRATION_10_11,
                             MIGRATION_11_12,
                             MIGRATION_12_13,
+<<<<<<< HEAD
                             MIGRATION_13_14
+=======
+                            MIGRATION_13_14,
+                            MIGRATION_14_15
+>>>>>>> d8c31960397f119aba61d2c43f1a411476b6f838
                     ).addCallback(new Callback() {
                         @Override
                         public void onCreate(@NonNull SupportSQLiteDatabase db) {

@@ -362,7 +362,12 @@ public class ProfileFragment extends Fragment {
                             return;
                         }
 
+<<<<<<< HEAD
                         User firestoreUser = new User(id, firstName, lastName, email, phone);
+=======
+                        int defaultRoleId = 1;
+                        User firestoreUser = new User(id, firstName, lastName, email, phone, defaultRoleId);
+>>>>>>> d8c31960397f119aba61d2c43f1a411476b6f838
                         if (profileImageBase64 != null) {
                             firestoreUser.setProfileImage(Base64.decode(profileImageBase64, Base64.DEFAULT));
                         }

@@ -12,6 +12,10 @@ import androidx.work.WorkManager;
 
 import com.example.cfeprjct.Sync.CatalogSync;
 import com.example.cfeprjct.Sync.SyncUserWorker;
+<<<<<<< HEAD
+=======
+import com.google.firebase.FirebaseApp;
+>>>>>>> d8c31960397f119aba61d2c43f1a411476b6f838
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.io.ByteArrayOutputStream;
@@ -31,6 +35,12 @@ public class MyApp extends Application {
         OneTimeWorkRequest syncReq = new OneTimeWorkRequest.Builder(SyncUserWorker.class)
                 .build();
         WorkManager.getInstance(this).enqueue(syncReq);
+<<<<<<< HEAD
+=======
+        localDb.getInstance(this);
+        FirebaseApp.initializeApp(this);
+        new FirestoreRoleMigration().migrateRoles();
+>>>>>>> d8c31960397f119aba61d2c43f1a411476b6f838
     }
 
 }
