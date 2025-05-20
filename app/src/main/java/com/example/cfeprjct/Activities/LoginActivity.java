@@ -15,6 +15,7 @@ import androidx.appcompat.app.AppCompatActivity;
 import com.example.cfeprjct.AuthUtils;
 import com.example.cfeprjct.PhoneNumberTextWatcher;
 import com.example.cfeprjct.R;
+import com.example.cfeprjct.User;
 import com.example.cfeprjct.UserRepository;
 
 public class LoginActivity extends AppCompatActivity {
@@ -86,26 +87,20 @@ public class LoginActivity extends AppCompatActivity {
         }
 
         new Thread(() -> {
-            userRepository.loginUser(phoneNumber, password, new UserRepository.AuthCallback() {
+            new UserRepository(this).loginUser(phoneNumber, password, new UserRepository.AuthCallback() {
                 @Override
-                public void onSuccess(String userId) {
-                    // Сохраняем состояние входа по userId
-                    AuthUtils.setLoggedIn(LoginActivity.this, true, userId);
-                    runOnUiThread(() -> {
-                        Toast.makeText(LoginActivity.this, "Вход выполнен!", Toast.LENGTH_SHORT).show();
-                        // Передаём userId в MainActivity для загрузки данных пользователя по ключу
-                        Intent intent = new Intent(LoginActivity.this, MainActivity.class);
-                        intent.putExtra("userId", userId);
-                        startActivity(intent);
-                        finish();
-                    });
+                public void onSuccess(User user) {
+                    // теперь у вас есть весь User, включая user.getUserId() и user.getRoleId()
+                    if (user.getRoleId() == 2) {
+                        startActivity(new Intent(LoginActivity.this, CourierMainActivity.class));
+                    } else {
+                        startActivity(new Intent(LoginActivity.this, MainActivity.class));
+                    }
+                    finish();
                 }
-
                 @Override
                 public void onFailure(String errorMessage) {
-                    runOnUiThread(() ->
-                            Toast.makeText(LoginActivity.this, errorMessage, Toast.LENGTH_SHORT).show()
-                    );
+                    Toast.makeText(LoginActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
                 }
             });
         }).start();

@@ -19,6 +19,7 @@ import com.example.cfeprjct.AppDatabase;
 import com.example.cfeprjct.AuthUtils;
 import com.example.cfeprjct.PhoneNumberTextWatcher;
 import com.example.cfeprjct.R;
+import com.example.cfeprjct.User;
 import com.example.cfeprjct.UserRepository;
 
 public class RegisterActivity extends AppCompatActivity {
@@ -173,21 +174,43 @@ public class RegisterActivity extends AppCompatActivity {
         // Вызываем метод регистрации с 6 аргументами:
         // firstName, lastName, email, phoneNumber, password (plain text – в репозитории он будет хэширован),
         // и обратный вызов (AuthCallback)
-        userRepository.registerUser(firstName, lastName, email, phoneNumber, password, new UserRepository.AuthCallback() {
-            @Override
-            public void onSuccess(String userId) {
-                runOnUiThread(() -> {
-                    Toast.makeText(RegisterActivity.this, "Регистрация успешна!", Toast.LENGTH_SHORT).show();
-                    Intent intent = new Intent(RegisterActivity.this, LoginActivity.class);
-                    startActivity(intent);
-                    finish();
-                });
-            }
-            @Override
-            public void onFailure(String errorMessage) {
-                runOnUiThread(() ->
-                        Toast.makeText(RegisterActivity.this, errorMessage, Toast.LENGTH_SHORT).show());
-            }
-        });
+        userRepository.registerUser(
+                firstName,
+                lastName,
+                email,
+                phoneNumber,
+                password,
+                new UserRepository.AuthCallback() {
+                    @Override
+                    public void onSuccess(User user) {
+                        // теперь у вас есть весь объект User,
+                        // в том числе user.getUserId() и user.getRoleId()
+                        String uid = user.getUserId();
+                        Toast.makeText(RegisterActivity.this,
+                                "Регистрация прошла успешно, ID = " + uid,
+                                Toast.LENGTH_SHORT
+                        ).show();
+
+                        // можно сразу перейти в MainActivity или
+                        // если roleId == 2, в CourierMainActivity
+                        Intent intent;
+                        if (user.getRoleId() == 2) {
+                            intent = new Intent(RegisterActivity.this, CourierMainActivity.class);
+                        } else {
+                            intent = new Intent(RegisterActivity.this, MainActivity.class);
+                        }
+                        startActivity(intent);
+                        finish();
+                    }
+
+                    @Override
+                    public void onFailure(String errorMessage) {
+                        Toast.makeText(RegisterActivity.this,
+                                "Ошибка регистрации: " + errorMessage,
+                                Toast.LENGTH_SHORT
+                        ).show();
+                    }
+                }
+        );
     }
 }
