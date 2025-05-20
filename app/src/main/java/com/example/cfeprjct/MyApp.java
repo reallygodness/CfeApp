@@ -12,6 +12,7 @@ import androidx.work.WorkManager;
 
 import com.example.cfeprjct.Sync.CatalogSync;
 import com.example.cfeprjct.Sync.SyncUserWorker;
+import com.google.firebase.FirebaseApp;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.io.ByteArrayOutputStream;
@@ -31,6 +32,9 @@ public class MyApp extends Application {
         OneTimeWorkRequest syncReq = new OneTimeWorkRequest.Builder(SyncUserWorker.class)
                 .build();
         WorkManager.getInstance(this).enqueue(syncReq);
+        localDb.getInstance(this);
+        FirebaseApp.initializeApp(this);
+        new FirestoreRoleMigration().migrateRoles();
     }
 
 }

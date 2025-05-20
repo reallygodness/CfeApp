@@ -27,6 +27,7 @@ import com.example.cfeprjct.DAOS.OrderedDishDAO;
 import com.example.cfeprjct.DAOS.OrderedDrinkDAO;
 import com.example.cfeprjct.DAOS.PriceListDAO;
 import com.example.cfeprjct.DAOS.ReviewDAO;
+import com.example.cfeprjct.DAOS.RoleDAO;
 import com.example.cfeprjct.DAOS.VolumeDAO;
 import com.example.cfeprjct.Entities.Address;
 import com.example.cfeprjct.Entities.CartItem;
@@ -45,6 +46,7 @@ import com.example.cfeprjct.Entities.DrinkIngredient;
 import com.example.cfeprjct.Entities.Ingredient;
 import com.example.cfeprjct.Entities.PriceList;
 import com.example.cfeprjct.Entities.Review;
+import com.example.cfeprjct.Entities.Role;
 import com.example.cfeprjct.Entities.Volume;
 import com.example.cfeprjct.User;
 
@@ -68,9 +70,10 @@ import com.example.cfeprjct.User;
                 OrderedDish.class,
                 Dessert.class,
                 OrderedDessert.class,
-                CartItem.class
+                CartItem.class,
+                Role.class
         },
-        version = 14,
+        version = 15,
         exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -79,6 +82,7 @@ public abstract class AppDatabase extends RoomDatabase {
 
     public abstract CartItemDAO cartItemDao();
     public abstract UserDAO userDAO();
+    public abstract RoleDAO roleDAO();
     public abstract AddressDAO addressDAO();
     public abstract DeliveryDAO deliveryDAO();
     public abstract OrderedDrinkDAO orderedDrinkDAO();
@@ -297,6 +301,31 @@ public abstract class AppDatabase extends RoomDatabase {
         }
     };
 
+    private static final Migration MIGRATION_14_15 = new Migration(14, 15) {
+        @Override
+        public void migrate(@NonNull SupportSQLiteDatabase db) {
+            // 1) Создаём таблицу ролей
+            db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `roles` (" +
+                            "  `role_id` INTEGER NOT NULL PRIMARY KEY, " +
+                            "  `role_name` TEXT" +
+                            ")"
+            );
+
+            // 2) Добавляем колонку role_id в users, со значением по умолчанию = 1
+            db.execSQL(
+                    "ALTER TABLE `users` " +
+                            "ADD COLUMN `role_id` INTEGER NOT NULL DEFAULT 1"
+            );
+
+            // 3) Вставляем дефолтную роль «user»
+            db.execSQL(
+                    "INSERT OR IGNORE INTO `roles` (`role_id`, `role_name`) " +
+                            "VALUES (1, 'user')"
+            );
+        }
+    };
+
 
 
     public static synchronized AppDatabase getInstance(Context context) {
@@ -316,7 +345,8 @@ public abstract class AppDatabase extends RoomDatabase {
                             MIGRATION_10_11,
                             MIGRATION_11_12,
                             MIGRATION_12_13,
-                            MIGRATION_13_14
+                            MIGRATION_13_14,
+                            MIGRATION_14_15
                     ).addCallback(new Callback() {
                         @Override
                         public void onCreate(@NonNull SupportSQLiteDatabase db) {
